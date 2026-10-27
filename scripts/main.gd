@@ -1,29 +1,42 @@
 extends Control
 
 const SAVE_PATH := "user://save.cfg"
-const SWIPE_MIN_DISTANCE := 60.0
-const BOARD_SIZE := 640.0
-const TEXT_COLOR := Color(0.467, 0.431, 0.396)
-const BUTTON_COLOR := Color(0.561, 0.478, 0.4)
+const SWIPE_MIN_DISTANCE := 12.0
+const SCREEN := Vector2(180, 320) # game area; extra space on tall phones shows the night sky
+const BOARD_SIZE := 168.0
 
 var board: Board
 var zeus: Zeus
+var sfx: Sfx
 
 var score := 0
 var hiscore := 0
+var sound_on := true
 var busy := false
 var over := false
 
-var _score_label: Label
-var _hiscore_label: Label
+var _screen: Control
+var _shaker: Control
+var _score_label: PixelLabel
+var _hiscore_label: PixelLabel
+var _sound_button: PixelButton
 var _game_over: Control
+var _game_over_box: Control
+var _final_score: PixelLabel
 var _swipe_start := Vector2.ZERO
 var _swiping := false
 
 
 func _ready() -> void:
-	hiscore = _load_hiscore()
+	_load_save()
+
+	sfx = Sfx.new()
+	sfx.enabled = sound_on
+	add_child(sfx)
+
 	_build_ui()
+	get_viewport().size_changed.connect(_layout)
+	_layout()
 	new_game()
 
 
@@ -45,6 +58,11 @@ func new_game() -> void:
 func try_move(dir: Vector2i) -> void:
 	if busy or over or not board.move(dir):
 		return
+
+	if board.merge_levels.is_empty():
+		sfx.play("move")
+	else:
+		sfx.play("merge", 1.0 + 0.06 * board.merge_levels.max())
 
 	busy = true
 	await get_tree().create_timer(Board.MOVE_TIME + 0.02).timeout
@@ -90,8 +108,14 @@ func _on_score_gained(points: int) -> void:
 	score += points
 	if score > hiscore:
 		hiscore = score
-		_save_hiscore()
+		_save()
 	_update_score_labels()
+
+
+func _on_tile_merged(tile: Tile) -> void:
+	var center := tile.global_position + tile.size / 2.0
+	var local := _shaker.get_global_transform().affine_inverse() * center
+	Fx.sparks(_shaker, local, Palette.tile_color(tile.level), 6, 14.0)
 
 
 func _update_score_labels() -> void:
@@ -101,160 +125,153 @@ func _update_score_labels() -> void:
 
 func _show_game_over() -> void:
 	over = true
+	sfx.play("over")
+	_final_score.text = "SCORE %d" % score
 	_game_over.visible = true
 	var tween := create_tween()
-	tween.tween_interval(1.0)
-	tween.tween_property(_game_over, "modulate:a", 1.0, 0.5)
+	tween.tween_interval(0.8)
+	tween.tween_property(_game_over, "modulate:a", 1.0, 0.3)
 
 
-func _load_hiscore() -> int:
+func _toggle_sound() -> void:
+	sound_on = not sound_on
+	sfx.enabled = sound_on
+	_sound_button.text = "SFX ON" if sound_on else "SFX OFF"
+	sfx.play("click")
+	_save()
+
+
+func _load_save() -> void:
 	var config := ConfigFile.new()
 	if config.load(SAVE_PATH) != OK:
-		return 0
-	return config.get_value("game", "hiscore", 0)
+		return
+	hiscore = config.get_value("game", "hiscore", 0)
+	sound_on = config.get_value("settings", "sound", true)
 
 
-func _save_hiscore() -> void:
+func _save() -> void:
 	var config := ConfigFile.new()
 	config.set_value("game", "hiscore", hiscore)
+	config.set_value("settings", "sound", sound_on)
 	config.save(SAVE_PATH)
 
 
 # --- UI ---------------------------------------------------------------------
 
-func _build_ui() -> void:
-	var background := ColorRect.new()
-	background.color = Color(0.98, 0.973, 0.937)
-	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(background)
+func _layout() -> void:
+	var origin := ((get_viewport_rect().size - SCREEN) / 2.0).floor()
+	_screen.position = origin
+	_game_over_box.position = origin
 
-	var layout := VBoxContainer.new()
-	layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	layout.offset_left = 40
-	layout.offset_right = -40
-	layout.offset_top = 60
-	layout.offset_bottom = -40
-	layout.add_theme_constant_override("separation", 24)
-	add_child(layout)
+
+func _build_ui() -> void:
+	add_child(Stars.new())
+
+	_screen = Control.new()
+	_screen.size = SCREEN
+	add_child(_screen)
+
+	_shaker = Control.new()
+	_shaker.size = SCREEN
+	_screen.add_child(_shaker)
 
 	# header: title + score boxes
-	var header := HBoxContainer.new()
-	header.add_theme_constant_override("separation", 12)
-	layout.add_child(header)
+	_place(_shaker, PixelLabel.new("2048", 3, Palette.GOLD, Palette.GOLD_DARK), Vector2(6, 8))
+	_place(_shaker, PixelLabel.new("OLYMPOS", 1, Palette.DIM), Vector2(7, 33))
+	_score_label = _score_box(Vector2(80, 8), "SCORE")
+	_hiscore_label = _score_box(Vector2(128, 8), "BEST")
 
-	var title := _label("2048", 96, TEXT_COLOR)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	header.add_child(title)
-
-	_score_label = _score_box(header, "SCORE")
-	_hiscore_label = _score_box(header, "BEST")
-
-	# Zeus + new game button
-	var middle := HBoxContainer.new()
-	middle.alignment = BoxContainer.ALIGNMENT_CENTER
-	middle.add_theme_constant_override("separation", 40)
-	layout.add_child(middle)
-
+	# Zeus, hint and buttons
 	zeus = Zeus.new()
-	middle.add_child(zeus)
+	_place(_shaker, zeus, Vector2(6, 46))
 
-	var side := VBoxContainer.new()
-	side.alignment = BoxContainer.ALIGNMENT_CENTER
-	side.add_theme_constant_override("separation", 14)
-	middle.add_child(side)
+	var hints := ["ZEUS MAY STRIKE", "A TILE: x2 x4!"]
+	for i in hints.size():
+		_place(_shaker, _centered(hints[i], 1, Palette.LIGHT, 116), Vector2(58, 52 + i * 10))
 
-	var hint := _label("Zeus may strike a tile\nand multiply it!", 26, TEXT_COLOR)
-	side.add_child(hint)
-	side.add_child(_button("New Game", new_game))
+	var new_button := PixelButton.new("NEW GAME", 64, 16)
+	new_button.pressed.connect(func() -> void:
+		sfx.play("click")
+		new_game()
+	)
+	_place(_shaker, new_button, Vector2(60, 78))
+
+	_sound_button = PixelButton.new("SFX ON" if sound_on else "SFX OFF", 46, 16, Palette.CELL.lightened(0.15))
+	_sound_button.pressed.connect(_toggle_sound)
+	_place(_shaker, _sound_button, Vector2(128, 78))
 
 	# board
-	var board_holder := CenterContainer.new()
-	board_holder.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	layout.add_child(board_holder)
-
 	board = Board.new()
 	board.setup(BOARD_SIZE)
 	board.score_gained.connect(_on_score_gained)
-	board_holder.add_child(board)
+	board.merged.connect(_on_tile_merged)
+	_place(_shaker, board, Vector2(6, 112))
 
-	layout.add_child(_label("Swipe to join the numbers and reach 2048", 24, TEXT_COLOR))
+	_place(_shaker, _centered("SWIPE TO MERGE TILES", 1, Palette.DIM, SCREEN.x), Vector2(0, 294))
 
-	# effects layer above everything (lightning, flashes, multiplier text)
+	# effects layer above the board (lightning, sparks, texts)
 	var effects := Control.new()
-	effects.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(effects)
+	effects.size = SCREEN
+	_shaker.add_child(effects)
+
+	# full-screen strobe for the lightning
+	var flash := ColorRect.new()
+	flash.color = Color(1, 1, 1, 0)
+	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(flash)
 
 	zeus.board = board
 	zeus.effects = effects
+	zeus.shaker = _shaker
+	zeus.flash = flash
+	zeus.sfx = sfx
 
 	# game over overlay
-	_game_over = ColorRect.new()
-	(_game_over as ColorRect).color = Color(0.933, 0.894, 0.855, 0.75)
+	_game_over = Dim.new()
 	_game_over.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(_game_over)
 
-	var over_box := VBoxContainer.new()
-	over_box.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	over_box.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	over_box.grow_vertical = Control.GROW_DIRECTION_BOTH
-	over_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	over_box.add_theme_constant_override("separation", 30)
-	_game_over.add_child(over_box)
-	over_box.add_child(_label("Game Over!", 80, TEXT_COLOR))
-	over_box.add_child(_button("Try Again", new_game))
+	_game_over_box = Control.new()
+	_game_over_box.size = SCREEN
+	_game_over.add_child(_game_over_box)
+
+	var panel := Box.new()
+	panel.size = Vector2(136, 80)
+	_place(_game_over_box, panel, Vector2(22, 128))
+	_place(_game_over_box, _centered("GAME OVER", 2, Palette.GOLD, SCREEN.x, Palette.INK), Vector2(0, 140))
+	_final_score = _centered("SCORE 0", 1, Palette.LIGHT, SCREEN.x)
+	_place(_game_over_box, _final_score, Vector2(0, 164))
+
+	var again := PixelButton.new("TRY AGAIN", 70, 16)
+	again.pressed.connect(func() -> void:
+		sfx.play("click")
+		new_game()
+	)
+	_place(_game_over_box, again, Vector2(55, 184))
 
 	_ignore_mouse(self)
 
 
-func _score_box(parent: Control, caption: String) -> Label:
-	var box := PanelContainer.new()
-	box.custom_minimum_size = Vector2(150, 0)
-	box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	box.add_theme_stylebox_override("panel", _style(Board.BOARD_COLOR, 8, 10))
-	parent.add_child(box)
+func _score_box(at: Vector2, caption: String) -> PixelLabel:
+	var box := Box.new()
+	box.size = Vector2(46, 24)
+	_place(_shaker, box, at)
+	_place(box, _centered(caption, 1, Palette.DIM, box.size.x), Vector2(0, 3))
 
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 0)
-	box.add_child(column)
-	column.add_child(_label(caption, 22, Color(0.933, 0.894, 0.855)))
-
-	var value := _label("0", 40, Color.WHITE)
-	column.add_child(value)
+	var value := _centered("0", 1, Palette.LIGHT, box.size.x)
+	_place(box, value, Vector2(0, 13))
 	return value
 
 
-func _label(text: String, font_size: int, color: Color) -> Label:
-	var label := Label.new()
-	label.text = text
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", color)
+func _centered(text: String, px: int, color: Color, width: float, shadow := Color.TRANSPARENT) -> PixelLabel:
+	var label := PixelLabel.new(text, px, color, shadow)
+	label.fixed_width = width
 	return label
 
 
-func _button(text: String, on_pressed: Callable) -> Button:
-	var button := Button.new()
-	button.text = text
-	button.custom_minimum_size = Vector2(220, 72)
-	button.focus_mode = Control.FOCUS_NONE
-	button.add_theme_font_size_override("font_size", 30)
-	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-		button.add_theme_color_override(state, Color.WHITE)
-	button.add_theme_stylebox_override("normal", _style(BUTTON_COLOR, 10, 12))
-	button.add_theme_stylebox_override("hover", _style(BUTTON_COLOR.lightened(0.1), 10, 12))
-	button.add_theme_stylebox_override("pressed", _style(BUTTON_COLOR.darkened(0.15), 10, 12))
-	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	button.pressed.connect(on_pressed)
-	return button
-
-
-func _style(color: Color, radius: int, padding: float) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = color
-	style.set_corner_radius_all(radius)
-	style.set_content_margin_all(padding)
-	return style
+func _place(parent: Control, child: Control, at: Vector2) -> void:
+	child.position = at
+	parent.add_child(child)
 
 
 # Everything except buttons lets touches through, so swipes work anywhere.
@@ -263,3 +280,52 @@ func _ignore_mouse(node: Node) -> void:
 		(node as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for child in node.get_children():
 		_ignore_mouse(child)
+
+
+# Score panel background.
+class Box extends Control:
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), Palette.INK)
+		draw_rect(Rect2(1, 1, size.x - 2, size.y - 2), Palette.BOARD)
+		draw_rect(Rect2(1, 1, size.x - 2, 1), Palette.BOARD.lightened(0.15))
+
+
+# Darkened scanline backdrop for the game over screen.
+class Dim extends Control:
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(Palette.INK, 0.6))
+		for y in range(0, int(size.y), 2):
+			draw_rect(Rect2(0, y, size.x, 1), Color(Palette.INK, 0.35))
+
+
+# Twinkling night sky behind the game.
+class Stars extends Control:
+	var _stars: Array[Vector3] = [] # x, y, brightness
+	var _timer := 0.0
+
+	func _ready() -> void:
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		resized.connect(_scatter)
+		_scatter()
+
+	func _scatter() -> void:
+		_stars.clear()
+		for i in int(size.x * size.y / 900.0):
+			_stars.append(Vector3(randi() % maxi(int(size.x), 1), randi() % maxi(int(size.y), 1), randf()))
+		queue_redraw()
+
+	func _process(delta: float) -> void:
+		_timer += delta
+		if _timer < 0.4 or _stars.is_empty():
+			return
+		_timer = 0.0
+		for i in 3:
+			var index := randi() % _stars.size()
+			var star := _stars[index]
+			star.z = randf()
+			_stars[index] = star
+		queue_redraw()
+
+	func _draw() -> void:
+		for star in _stars:
+			draw_rect(Rect2(star.x, star.y, 1, 1), Palette.LIGHT if star.z > 0.8 else Palette.DIM.darkened(0.3))

@@ -9,30 +9,56 @@ extends Control
 @export var cooldown_moves := 3 # minimum moves between two normal strikes
 @export_range(0.0, 1.0) var x4_chance := 0.2
 @export var rescues_per_game := 1 # strikes that save the player when no move is left
-@export var portrait: Texture2D # optional art; a drawn placeholder is used otherwise
+@export var portrait: Texture2D # optional art; the pixel sprite is used otherwise
 
-const GOLD := Color(0.96, 0.78, 0.25)
-const ROBE := Color(0.33, 0.25, 0.45)
-const BOLT := Color(1.0, 0.95, 0.6)
-const BOLT_SHAPE: Array[Vector2] = [
-	Vector2(0.2, -0.8), Vector2(-0.35, 0.1), Vector2(0.0, 0.1), Vector2(-0.2, 0.8),
-	Vector2(0.4, -0.15), Vector2(0.05, -0.15), Vector2(0.3, -0.8),
+const FRAME := 46.0
+const SPRITE_PX := 2
+const SPRITE: Array[String] = [
+	"....g.G.GGGG.G.g....",
+	"...gGGGGWWWWGGGGg...",
+	"..gGWWWWWWWWWWWWGg..",
+	"..WWWWWWWWWWWWWWWW..",
+	".WWWWSSSSSSSSSSWWWW.",
+	".WWWSSSSSSSSSSSSWWW.",
+	".WWWSEEESSSSEEESWWW.",
+	".WWWSSPSSSSSSPSSWWW.",
+	".WWWSSSSSSSSSSSSWWW.",
+	".wWWSSSSSssSSSSSWWw.",
+	".wWWWSWWWWWWWWSWWWw.",
+	".wWWWWWWEEEEWWWWWWw.",
+	".wWWWWWWWWWWWWWWWWw.",
+	"..wWWWWWwWWwWWWWWw..",
+	"..wWWWWWWWWWWWWWWw..",
+	"...wWWWwWWWWwWWWw...",
+	"....wWWWWWWWWWWw....",
+	".....wWWwWWwWWw.....",
+	"......wWWWWWWw......",
+	"........wWWw........",
 ]
-const NAME_HEIGHT := 30.0
+const SPRITE_COLORS := {
+	"W": Color("f4f0ff"), "w": Color("b9b0d6"),
+	"S": Color("f2b88c"), "s": Color("c98563"),
+	"E": Color("3a2a4a"), "P": Color("3a2a4a"),
+	"G": Palette.GOLD, "g": Palette.GOLD_DARK,
+}
 
 var board: Board
-var effects: Control # full-screen layer the lightning is drawn on
+var effects: Control # layer the lightning and texts are drawn on
+var shaker: Control # node that shakes on a strike
+var flash: ColorRect # full-screen strobe
+var sfx: Sfx
 
 var _moves_since_strike := 0
 var _rescues_used := 0
 var _time := 0.0
 var _glow := 0.0
+var _bob := 0
 
 
 func _init() -> void:
-	custom_minimum_size = Vector2(150, 150 + NAME_HEIGHT)
+	custom_minimum_size = Vector2(FRAME, FRAME + 10)
+	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	resized.connect(func() -> void: pivot_offset = size / 2.0)
 
 
 func reset() -> void:
@@ -68,6 +94,7 @@ func try_rescue() -> bool:
 		var tile := _pick_target(steps, true)
 		if tile != null:
 			_rescues_used += 1
+			_banner("DIVINE RESCUE!")
 			await _strike(tile, steps)
 			return true
 
@@ -101,118 +128,131 @@ func _pick_target(steps: int, helpful_only: bool) -> Tile:
 
 func _strike(tile: Tile, steps: int) -> void:
 	_glow = 1.0
-	var pulse := create_tween()
-	pulse.tween_property(self, "scale", Vector2.ONE * 1.12, 0.1)
-	pulse.tween_property(self, "scale", Vector2.ONE, 0.2)
+	sfx.play("zap")
+	sfx.play("thunder")
 
-	var from := _to_effects(global_position + _bolt_center())
+	var from := _to_effects(global_position + Vector2(FRAME / 2.0, FRAME - 4.0))
 	var to := _to_effects(tile.global_position + tile.size / 2.0)
-	_spawn_lightning(from, to)
-	_spawn_flash()
+	_spawn_bolt(from, to)
+	_strobe()
+	Fx.shake(shaker, 3, 0.3)
 
 	await get_tree().create_timer(0.12).timeout
 
 	if is_instance_valid(tile):
 		board.upgrade(tile, steps)
+		sfx.play("bonus")
+		Fx.sparks(effects, to, Palette.GOLD, 14, 24.0)
+		Fx.sparks(effects, to, Color.WHITE, 6, 14.0)
 		_spawn_multiplier(to, 1 << steps)
 
-	await get_tree().create_timer(0.45).timeout
+	await get_tree().create_timer(0.5).timeout
 
 
 func _to_effects(global_point: Vector2) -> Vector2:
-	return effects.get_global_transform().affine_inverse() * global_point
+	return (effects.get_global_transform().affine_inverse() * global_point).floor()
 
 
-func _spawn_lightning(from: Vector2, to: Vector2) -> void:
-	var points := PackedVector2Array()
-	var segments := 10
-	var normal := (to - from).orthogonal().normalized()
-	for i in segments + 1:
-		var t := float(i) / segments
-		var jitter := 0.0 if i == 0 or i == segments else randf_range(-22.0, 22.0)
-		points.append(from.lerp(to, t) + normal * jitter)
-
-	var bolt := Node2D.new()
-	for layer in [[26.0, Color(GOLD, 0.35)], [8.0, BOLT], [3.0, Color.WHITE]]:
-		var line := Line2D.new()
-		line.points = points
-		line.width = layer[0]
-		line.default_color = layer[1]
-		line.joint_mode = Line2D.LINE_JOINT_ROUND
-		line.begin_cap_mode = Line2D.LINE_CAP_ROUND
-		line.end_cap_mode = Line2D.LINE_CAP_ROUND
-		bolt.add_child(line)
+func _spawn_bolt(from: Vector2, to: Vector2) -> void:
+	var bolt := Bolt.new()
+	bolt.points = _jagged(from, to, 8, 6.0)
+	var fork_start := bolt.points[bolt.points.size() / 2]
+	bolt.fork = _jagged(fork_start, fork_start + Vector2(randf_range(-24, 24), 22), 3, 3.0)
 	effects.add_child(bolt)
 
-	var flicker := bolt.create_tween()
-	flicker.tween_property(bolt, "modulate:a", 0.3, 0.06)
-	flicker.tween_property(bolt, "modulate:a", 1.0, 0.06)
-	flicker.tween_property(bolt, "modulate:a", 0.0, 0.3)
-	flicker.tween_callback(bolt.queue_free)
+	var tween := bolt.create_tween()
+	tween.tween_interval(0.06)
+	tween.tween_callback(bolt.hide)
+	tween.tween_interval(0.04)
+	tween.tween_callback(bolt.show)
+	tween.tween_interval(0.1)
+	tween.tween_callback(bolt.queue_free)
 
 
-func _spawn_flash() -> void:
-	var flash := ColorRect.new()
-	flash.color = Color(1.0, 0.97, 0.8, 0.5)
-	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	effects.add_child(flash)
+func _jagged(from: Vector2, to: Vector2, segments: int, jitter: float) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	var normal := (to - from).orthogonal().normalized()
+	for i in segments + 1:
+		var offset := 0.0 if i == 0 or i == segments else randf_range(-jitter, jitter)
+		points.append((from.lerp(to, float(i) / segments) + normal * offset).floor())
+	return points
 
-	var fade := flash.create_tween()
-	fade.tween_property(flash, "color:a", 0.0, 0.3)
-	fade.tween_callback(flash.queue_free)
+
+func _strobe() -> void:
+	var tween := flash.create_tween()
+	for alpha in [0.8, 0.0, 0.5, 0.0]:
+		tween.tween_property(flash, "color:a", alpha, 0.0)
+		tween.tween_interval(0.04)
 
 
 func _spawn_multiplier(at: Vector2, multiplier: int) -> void:
-	var label := Label.new()
-	label.text = "x%d" % multiplier
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 84)
-	label.add_theme_color_override("font_color", GOLD)
-	label.add_theme_color_override("font_outline_color", Color(0.35, 0.2, 0.05))
-	label.add_theme_constant_override("outline_size", 14)
-	label.size = Vector2(200, 110)
-	label.pivot_offset = label.size / 2.0
-	label.position = at - label.size / 2.0
-	label.scale = Vector2.ONE * 0.4
+	var label := PixelLabel.new("x%d" % multiplier, 3, Palette.GOLD, Palette.INK)
+	label.position = (at - label.size / 2.0).floor()
 	effects.add_child(label)
 
 	var tween := label.create_tween()
-	tween.tween_property(label, "scale", Vector2.ONE * 1.2, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tween.parallel().tween_property(label, "position:y", label.position.y - 70.0, 0.8).set_ease(Tween.EASE_OUT)
-	tween.tween_interval(0.25)
-	tween.tween_property(label, "modulate:a", 0.0, 0.35)
-	tween.tween_callback(label.queue_free)
+	tween.tween_property(label, "position:y", label.position.y - 10.0, 0.3).set_ease(Tween.EASE_OUT)
+	Fx.blink_out(label, 0.45)
+
+
+func _banner(text: String) -> void:
+	var label := PixelLabel.new(text, 2, Palette.GOLD, Palette.INK)
+	var center := _to_effects(board.global_position + board.size / 2.0)
+	label.position = (center - label.size / 2.0).floor()
+	effects.add_child(label)
+	Fx.blink_out(label, 0.9, 4)
 
 
 func _process(delta: float) -> void:
 	_time += delta
-	_glow = maxf(_glow - delta * 1.5, 0.0)
-	queue_redraw()
-
-
-func _bolt_center() -> Vector2:
-	return Vector2(size.x / 2.0, (size.y - NAME_HEIGHT) / 2.0)
+	var bob := int(_time * 2.0) % 2
+	if _glow > 0.0 or bob != _bob:
+		_bob = bob
+		_glow = maxf(_glow - delta * 2.0, 0.0)
+		queue_redraw()
 
 
 func _draw() -> void:
-	var center := _bolt_center()
-	var radius := minf(size.x, size.y - NAME_HEIGHT) / 2.0 - 10.0
-	var breathe := 0.5 + 0.5 * sin(_time * 2.0)
+	var lit := _glow > 0.0
 
-	draw_circle(center, radius + 6.0 + 4.0 * breathe + 6.0 * _glow, Color(GOLD, 0.15 + 0.1 * breathe + 0.5 * _glow))
-	draw_circle(center, radius, ROBE)
+	# portrait frame
+	draw_rect(Rect2(0, 0, FRAME, FRAME), Palette.INK)
+	draw_rect(Rect2(1, 1, FRAME - 2, FRAME - 2), Palette.GOLD if lit else Palette.GOLD_DARK)
+	draw_rect(Rect2(2, 2, FRAME - 4, FRAME - 4), Palette.BOARD.lightened(0.2) if lit else Palette.CELL)
 
+	var origin := Vector2(3, 3 + _bob)
 	if portrait != null:
-		draw_texture_rect(portrait, Rect2(center - Vector2.ONE * radius, Vector2.ONE * radius * 2.0), false)
+		draw_texture_rect(portrait, Rect2(3, 3, FRAME - 6, FRAME - 6), false)
 	else:
-		var shape := PackedVector2Array()
-		for p in BOLT_SHAPE:
-			shape.append(center + p * radius * 0.75)
-		draw_colored_polygon(shape, BOLT.lerp(Color.WHITE, _glow))
+		for y in SPRITE.size():
+			var row := SPRITE[y]
+			for x in row.length():
+				var key := row[x]
+				if key == ".":
+					continue
+				var color: Color = Color.WHITE if (lit and key == "P") else SPRITE_COLORS[key]
+				draw_rect(Rect2(origin + Vector2(x, y) * SPRITE_PX, Vector2.ONE * SPRITE_PX), color)
 
-	draw_arc(center, radius, 0.0, TAU, 64, GOLD, 5.0, true)
-	draw_string(get_theme_default_font(), Vector2(0.0, size.y - 6.0), "ZEUS",
-			HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, GOLD)
+	PixelFont.draw_centered(self, "ZEUS", Rect2(0, FRAME + 2, FRAME, 7), 1, Palette.GOLD, Palette.INK)
+
+
+# Pixel lightning: chunky gold glow with a 1px white core.
+class Bolt extends Node2D:
+	var points := PackedVector2Array()
+	var fork := PackedVector2Array()
+
+	func _draw() -> void:
+		for path in [points, fork]:
+			_path(path, 3, Palette.GOLD)
+		for path in [points, fork]:
+			_path(path, 1, Color.WHITE)
+
+	func _path(path: PackedVector2Array, width: int, color: Color) -> void:
+		var half := floorf(width / 2.0)
+		for i in path.size() - 1:
+			var a := path[i]
+			var b := path[i + 1]
+			var steps := maxi(1, int(maxf(absf(b.x - a.x), absf(b.y - a.y))))
+			for s in steps + 1:
+				var p := a.lerp(b, float(s) / steps).floor()
+				draw_rect(Rect2(p - Vector2(half, half), Vector2(width, width)), color)

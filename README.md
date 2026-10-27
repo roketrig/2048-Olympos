@@ -1,8 +1,8 @@
 # 2048 Olympos
 
-Klasik 2048, bir farkla: Zeus tahtayı izliyor ve şansa bağlı olarak bir taşa yıldırım düşürüp onu **x2** ya da **x4** katlıyor. Oyun tıkandığında ise oyun başına bir kez araya girip bir birleşme imkânı açıyor.
+8-bit retro tarzında klasik 2048, bir farkla: Zeus tahtayı izliyor ve şansa bağlı olarak bir taşa yıldırım düşürüp onu **x2** ya da **x4** katlıyor. Oyun tıkandığında ise oyun başına bir kez araya girip bir birleşme imkânı açıyor.
 
-Godot 4.7 ile yazıldı. Android ve iOS hedefleniyor.
+Godot 4.7 ile yazıldı; 180x320 piksel çözünürlükte çizilip ekrana ölçeklenir. Font, Zeus sprite'ı ve chiptune sesler kodla üretilir, harici asset yok. Android ve iOS hedefleniyor.
 
 ## Çalıştırma
 

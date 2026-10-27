@@ -1,39 +1,40 @@
 class_name Board
-extends Panel
+extends Control
 
 signal score_gained(points: int)
+signal merged(tile: Tile)
 
 const SIZE := 4
-const GAP := 16.0
+const GAP := 4.0
 const MOVE_TIME := 0.1
 const MAX_LEVEL := 16 # 131072
-const BOARD_COLOR := Color(0.733, 0.678, 0.627)
-const CELL_COLOR := Color(0.804, 0.757, 0.706)
 
 var cell_size := 0.0
 var cells: Array = [] # cells[y][x] -> Tile or null
+var merge_levels: Array[int] = [] # levels created by the last move
 
 
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_theme_stylebox_override("panel", _rounded(BOARD_COLOR, 14))
 
 
 func setup(board_size: float) -> void:
 	custom_minimum_size = Vector2(board_size, board_size)
 	size = custom_minimum_size
-	cell_size = (board_size - GAP * (SIZE + 1)) / SIZE
+	cell_size = floorf((board_size - GAP * (SIZE + 1)) / SIZE)
+	clear()
+
+
+func _draw() -> void:
+	draw_rect(Rect2(Vector2.ZERO, size), Palette.INK)
+	draw_rect(Rect2(1, 1, size.x - 2, size.y - 2), Palette.BOARD)
+	draw_rect(Rect2(1, 1, size.x - 2, 1), Palette.BOARD.lightened(0.15))
 
 	for y in SIZE:
 		for x in SIZE:
-			var cell := Panel.new()
-			cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			cell.add_theme_stylebox_override("panel", _rounded(CELL_COLOR, 10))
-			cell.position = cell_position(Vector2i(x, y))
-			cell.size = Vector2(cell_size, cell_size)
-			add_child(cell)
-
-	clear()
+			var p := cell_position(Vector2i(x, y))
+			draw_rect(Rect2(p, Vector2(cell_size, cell_size)), Palette.CELL)
+			draw_rect(Rect2(p, Vector2(cell_size, 1)), Palette.INK) # inset shadow
 
 
 func clear() -> void:
@@ -48,7 +49,8 @@ func clear() -> void:
 
 
 func cell_position(p: Vector2i) -> Vector2:
-	return Vector2(GAP + p.x * (cell_size + GAP), GAP + p.y * (cell_size + GAP))
+	var offset := floorf((size.x - (cell_size * SIZE + GAP * (SIZE - 1))) / 2.0)
+	return Vector2(offset + p.x * (cell_size + GAP), offset + p.y * (cell_size + GAP))
 
 
 func is_inside(p: Vector2i) -> bool:
@@ -109,6 +111,7 @@ func move(dir: Vector2i) -> bool:
 		ys.reverse()
 
 	var changed := false
+	merge_levels.clear()
 
 	for y in ys:
 		for x in xs:
@@ -152,7 +155,7 @@ func can_move() -> bool:
 func upgrade(tile: Tile, steps: int) -> void:
 	var old_value := tile.value()
 	tile.set_level(mini(tile.level + steps, MAX_LEVEL))
-	tile.pop(1.3, 0.3)
+	tile.pop(1.35, 0.3)
 	score_gained.emit(tile.value() - old_value)
 
 
@@ -169,6 +172,7 @@ func _merge(tile: Tile, into: Tile) -> void:
 
 	var new_level := into.level + 1
 	into.level = new_level
+	merge_levels.append(new_level)
 	score_gained.emit(Tile.value_of(new_level))
 
 	move_child(tile, into.get_index()) # slide underneath the tile it merges into
@@ -179,11 +183,5 @@ func _merge(tile: Tile, into: Tile) -> void:
 		if is_instance_valid(into):
 			into.set_level(into.level)
 			into.pop()
+			merged.emit(into)
 	)
-
-
-static func _rounded(color: Color, radius: int) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = color
-	style.set_corner_radius_all(radius)
-	return style
