@@ -4,9 +4,14 @@ const SAVE_PATH := "user://save.cfg"
 const SWIPE_MIN_DISTANCE := 12.0
 const SCREEN := Vector2(180, 320) # game area; extra space on tall phones shows the night sky
 const BOARD_SIZE := 168.0
+const MAX_POTIONS := 3
+const HEART_ICON: Array[String] = [".##.##.", "#######", "#######", ".#####.", "..###..", "...#..."]
 
 var board: Board
 var zeus: Zeus
+var eros: Eros
+var ares: Ares
+var gods: Array[God] = []
 var sfx: Sfx
 
 var score := 0
@@ -15,11 +20,20 @@ var sound_on := true
 var busy := false
 var over := false
 
+# love potion: lift a tile off the board and drop it back on any empty cell
+var potions := 0
+var held_level := -1
+var picking := false
+
 var _screen: Control
 var _shaker: Control
+var _score_box: Box
 var _score_label: PixelLabel
 var _hiscore_label: PixelLabel
+var _potion_button: PixelButton
+var _held_slot: HeldSlot
 var _sound_button: PixelButton
+var _hint: PixelLabel
 var _game_over: Control
 var _game_over_box: Control
 var _final_score: PixelLabel
@@ -44,38 +58,109 @@ func new_game() -> void:
 	score = 0
 	over = false
 	busy = false
+	potions = 0
+	held_level = -1
+	picking = false
 	_update_score_labels()
 
 	_game_over.visible = false
 	_game_over.modulate.a = 0.0
 
-	zeus.reset()
+	for god in gods:
+		god.reset()
 	board.clear()
 	board.spawn_tile()
 	board.spawn_tile()
+	_refresh_ui()
 
 
 func try_move(dir: Vector2i) -> void:
-	if busy or over or not board.move(dir):
+	if busy or over:
+		return
+	picking = false
+	if not board.move(dir):
+		_refresh_ui()
 		return
 
-	if board.merge_levels.is_empty():
-		sfx.play("move")
-	else:
+	var merged := not board.merge_levels.is_empty()
+	if merged:
 		sfx.play("merge", 1.0 + 0.06 * board.merge_levels.max())
+	else:
+		sfx.play("move")
 
 	busy = true
 	await get_tree().create_timer(Board.MOVE_TIME + 0.02).timeout
 
 	board.spawn_tile()
-	await zeus.after_move()
+	if merged and potions < MAX_POTIONS and eros.roll_potion():
+		potions += 1
+		eros.gift_potion(eros.to_effects(_potion_button.global_position + _potion_button.size / 2.0))
 
-	if not board.can_move():
-		var rescued: bool = await zeus.try_rescue()
-		if not rescued or not board.can_move():
-			_show_game_over()
+	# every god counts the move, then at most one of them acts
+	for god in gods:
+		god.tick()
+	var order := gods.duplicate()
+	order.shuffle()
+	for god in order:
+		var acted: bool = await god.after_move()
+		if acted:
+			break
 
+	_refresh_ui()
+	await _check_stuck()
 	busy = false
+
+
+func _check_stuck() -> void:
+	if board.can_move():
+		return
+	var rescued: bool = await zeus.try_rescue()
+	if not rescued or not board.can_move():
+		_show_game_over()
+
+
+func _on_tap(at: Vector2) -> void:
+	if busy or over:
+		return
+	var cell := board.cell_at(board.get_global_transform().affine_inverse() * at)
+	if cell.x < 0:
+		return
+
+	var tile := board.tile_at(cell)
+	if picking and tile != null:
+		_lift(tile)
+	elif held_level >= 0 and tile == null:
+		_drop(cell)
+
+
+func _lift(tile: Tile) -> void:
+	potions -= 1
+	picking = false
+	held_level = tile.level
+	var center := _shaker.get_global_transform().affine_inverse() * (tile.global_position + tile.size / 2.0)
+	Fx.sparks(_shaker, center, Eros.PINK, 10, 16.0)
+	board.remove_tile(tile)
+	sfx.play("lift")
+	_refresh_ui()
+
+
+func _drop(cell: Vector2i) -> void:
+	board.place_tile(cell, held_level)
+	held_level = -1
+	sfx.play("drop")
+	_refresh_ui()
+
+	busy = true
+	await _check_stuck()
+	busy = false
+
+
+func _on_potion_pressed() -> void:
+	if busy or over or held_level >= 0 or potions == 0:
+		return
+	picking = not picking
+	sfx.play("click")
+	_refresh_ui()
 
 
 func _input(event: InputEvent) -> void:
@@ -97,15 +182,15 @@ func _input(event: InputEvent) -> void:
 			_swiping = false
 			var delta: Vector2 = event.position - _swipe_start
 			if delta.length() < SWIPE_MIN_DISTANCE:
-				return
-			if absf(delta.x) > absf(delta.y):
+				_on_tap(event.position)
+			elif absf(delta.x) > absf(delta.y):
 				try_move(Vector2i.RIGHT if delta.x > 0 else Vector2i.LEFT)
 			else:
 				try_move(Vector2i.DOWN if delta.y > 0 else Vector2i.UP)
 
 
 func _on_score_gained(points: int) -> void:
-	score += points
+	score += ares.apply_rage(points)
 	if score > hiscore:
 		hiscore = score
 		_save()
@@ -121,6 +206,33 @@ func _on_tile_merged(tile: Tile) -> void:
 func _update_score_labels() -> void:
 	_score_label.text = str(score)
 	_hiscore_label.text = str(hiscore)
+
+
+func _refresh_ui() -> void:
+	_potion_button.text = "x%d" % potions
+	_potion_button.disabled = potions == 0 or held_level >= 0
+	_potion_button.highlighted = picking
+	_potion_button.queue_redraw()
+
+	_held_slot.level = held_level
+	_held_slot.waiting = picking
+	_held_slot.queue_redraw()
+
+	_score_box.hot = ares.is_raging()
+	_score_box.queue_redraw()
+
+	if picking:
+		_hint.text = "TAP A TILE TO LIFT IT"
+		_hint.color = Eros.PINK
+	elif held_level >= 0:
+		_hint.text = "TAP EMPTY CELL TO DROP"
+		_hint.color = Eros.PINK
+	elif ares.is_raging():
+		_hint.text = "ARES RAGE: SCORE x%s" % str(ares.score_multiplier)
+		_hint.color = Ares.RED
+	else:
+		_hint.text = "SWIPE TO MERGE TILES"
+		_hint.color = Palette.DIM
 
 
 func _show_game_over() -> void:
@@ -176,55 +288,69 @@ func _build_ui() -> void:
 	_screen.add_child(_shaker)
 
 	# header: title + score boxes
-	_place(_shaker, PixelLabel.new("2048", 3, Palette.GOLD, Palette.GOLD_DARK), Vector2(6, 8))
-	_place(_shaker, PixelLabel.new("OLYMPOS", 1, Palette.DIM), Vector2(7, 33))
-	_score_label = _score_box(Vector2(80, 8), "SCORE")
-	_hiscore_label = _score_box(Vector2(128, 8), "BEST")
+	_place(_shaker, PixelLabel.new("2048", 3, Palette.GOLD, Palette.GOLD_DARK), Vector2(6, 6))
+	_place(_shaker, PixelLabel.new("OLYMPOS", 1, Palette.DIM), Vector2(7, 31))
+	_score_box = _make_score_box(Vector2(80, 6), "SCORE")
+	_score_label = _score_box.value
+	_hiscore_label = _make_score_box(Vector2(128, 6), "BEST").value
 
-	# Zeus, hint and buttons
+	# the gods
 	zeus = Zeus.new()
-	_place(_shaker, zeus, Vector2(6, 46))
-
-	var hints := ["ZEUS MAY STRIKE", "A TILE: x2 x4!"]
-	for i in hints.size():
-		_place(_shaker, _centered(hints[i], 1, Palette.LIGHT, 116), Vector2(58, 52 + i * 10))
-
-	var new_button := PixelButton.new("NEW GAME", 64, 16)
-	new_button.pressed.connect(func() -> void:
-		sfx.play("click")
-		new_game()
-	)
-	_place(_shaker, new_button, Vector2(60, 78))
-
-	_sound_button = PixelButton.new("SFX ON" if sound_on else "SFX OFF", 46, 16, Palette.CELL.lightened(0.15))
-	_sound_button.pressed.connect(_toggle_sound)
-	_place(_shaker, _sound_button, Vector2(128, 78))
+	eros = Eros.new()
+	ares = Ares.new()
+	gods = [zeus, eros, ares]
+	for i in gods.size():
+		_place(_shaker, gods[i], Vector2(6 + i * 61, 42))
 
 	# board
 	board = Board.new()
 	board.setup(BOARD_SIZE)
 	board.score_gained.connect(_on_score_gained)
 	board.merged.connect(_on_tile_merged)
-	_place(_shaker, board, Vector2(6, 112))
+	_place(_shaker, board, Vector2(6, 104))
 
-	_place(_shaker, _centered("SWIPE TO MERGE TILES", 1, Palette.DIM, SCREEN.x), Vector2(0, 294))
+	# bottom bar: potion, held tile, new game, sound
+	_potion_button = PixelButton.new("x0", 32, 20, Palette.CELL.lightened(0.15))
+	_potion_button.icon = HEART_ICON
+	_potion_button.icon_color = Eros.PINK
+	_potion_button.pressed.connect(_on_potion_pressed)
+	_place(_shaker, _potion_button, Vector2(6, 278))
 
-	# effects layer above the board (lightning, sparks, texts)
+	_held_slot = HeldSlot.new()
+	_held_slot.size = Vector2(32, 20)
+	_place(_shaker, _held_slot, Vector2(40, 278))
+
+	var new_button := PixelButton.new("NEW GAME", 54, 20)
+	new_button.pressed.connect(func() -> void:
+		sfx.play("click")
+		new_game()
+	)
+	_place(_shaker, new_button, Vector2(74, 278))
+
+	_sound_button = PixelButton.new("SFX ON" if sound_on else "SFX OFF", 44, 20, Palette.CELL.lightened(0.15))
+	_sound_button.pressed.connect(_toggle_sound)
+	_place(_shaker, _sound_button, Vector2(130, 278))
+
+	_hint = _centered("SWIPE TO MERGE TILES", 1, Palette.DIM, SCREEN.x)
+	_place(_shaker, _hint, Vector2(0, 306))
+
+	# effects layer above the board (lightning, hearts, sparks, texts)
 	var effects := Control.new()
 	effects.size = SCREEN
 	_shaker.add_child(effects)
 
-	# full-screen strobe for the lightning
+	# full-screen strobe for big moments
 	var flash := ColorRect.new()
 	flash.color = Color(1, 1, 1, 0)
 	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(flash)
 
-	zeus.board = board
-	zeus.effects = effects
-	zeus.shaker = _shaker
-	zeus.flash = flash
-	zeus.sfx = sfx
+	for god in gods:
+		god.board = board
+		god.effects = effects
+		god.shaker = _shaker
+		god.flash = flash
+		god.sfx = sfx
 
 	# game over overlay
 	_game_over = Dim.new()
@@ -252,15 +378,15 @@ func _build_ui() -> void:
 	_ignore_mouse(self)
 
 
-func _score_box(at: Vector2, caption: String) -> PixelLabel:
+func _make_score_box(at: Vector2, caption: String) -> Box:
 	var box := Box.new()
 	box.size = Vector2(46, 24)
 	_place(_shaker, box, at)
 	_place(box, _centered(caption, 1, Palette.DIM, box.size.x), Vector2(0, 3))
 
-	var value := _centered("0", 1, Palette.LIGHT, box.size.x)
-	_place(box, value, Vector2(0, 13))
-	return value
+	box.value = _centered("0", 1, Palette.LIGHT, box.size.x)
+	_place(box, box.value, Vector2(0, 13))
+	return box
 
 
 func _centered(text: String, px: int, color: Color, width: float, shadow := Color.TRANSPARENT) -> PixelLabel:
@@ -282,12 +408,33 @@ func _ignore_mouse(node: Node) -> void:
 		_ignore_mouse(child)
 
 
-# Score panel background.
+# Panel background; turns red while Ares rages (for the score box).
 class Box extends Control:
+	var value: PixelLabel
+	var hot := false
+
+	func _draw() -> void:
+		var color := Ares.RED.darkened(0.35) if hot else Palette.BOARD
+		draw_rect(Rect2(Vector2.ZERO, size), Palette.INK)
+		draw_rect(Rect2(1, 1, size.x - 2, size.y - 2), color)
+		draw_rect(Rect2(1, 1, size.x - 2, 1), color.lightened(0.15))
+
+
+# Shows the tile lifted with a love potion.
+class HeldSlot extends Control:
+	var level := -1
+	var waiting := false
+
 	func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Palette.INK)
-		draw_rect(Rect2(1, 1, size.x - 2, size.y - 2), Palette.BOARD)
-		draw_rect(Rect2(1, 1, size.x - 2, 1), Palette.BOARD.lightened(0.15))
+		draw_rect(Rect2(1, 1, size.x - 2, size.y - 2), Palette.CELL)
+		if level >= 0:
+			Tile.draw_face(self, Rect2(2, 2, size.x - 4, size.y - 4), level)
+		elif waiting:
+			draw_rect(Rect2(0, 0, size.x, size.y), Eros.PINK, false, 1.0)
+			PixelFont.draw_centered(self, "?", Rect2(Vector2.ZERO, size), 1, Eros.PINK)
+		else:
+			PixelFont.draw_centered(self, "-", Rect2(Vector2.ZERO, size), 1, Palette.DIM)
 
 
 # Darkened scanline backdrop for the game over screen.

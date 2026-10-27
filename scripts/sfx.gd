@@ -24,6 +24,13 @@ func _ready() -> void:
 		"over": _synth([[392, 392, 0.14, "triangle", 0.4], [330, 330, 0.14, "triangle", 0.4],
 				[262, 262, 0.14, "triangle", 0.4], [196, 196, 0.45, "triangle", 0.4]]),
 		"click": _synth([[900, 900, 0.03, "square", 0.12]]),
+		"love": _synth([[523, 523, 0.07, "triangle", 0.35], [659, 659, 0.07, "triangle", 0.35],
+				[784, 784, 0.07, "triangle", 0.35], [1047, 1047, 0.2, "triangle", 0.35]]),
+		"potion": _synth([[700, 1400, 0.08, "square", 0.12], [900, 1800, 0.1, "square", 0.12]]),
+		"lift": _synth([[300, 900, 0.08, "square", 0.12]]),
+		"drop": _synth([[900, 300, 0.08, "square", 0.12]]),
+		"scream": _synth([[620, 260, 0.4, "saw", 0.2], [260, 90, 0.3, "noise", 0.35]]),
+		"shatter": _synth([[0, 0, 0.15, "noise", 0.25]]),
 	}
 
 	for i in 6:
@@ -67,6 +74,8 @@ static func _synth(notes: Array) -> AudioStreamWAV:
 					sample = 1.0 if phase < 0.5 else -1.0
 				"triangle":
 					sample = 4.0 * absf(phase - 0.5) - 1.0
+				"saw":
+					sample = 2.0 * phase - 1.0
 				"noise":
 					noise_hold -= 1
 					if noise_hold <= 0:

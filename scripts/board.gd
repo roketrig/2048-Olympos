@@ -89,16 +89,40 @@ func spawn_tile() -> Tile:
 	if empty.is_empty():
 		return null
 
-	var p: Vector2i = empty.pick_random()
+	return place_tile(empty.pick_random(), 0)
+
+
+func place_tile(p: Vector2i, level: int) -> Tile:
 	var tile := Tile.new()
 	tile.resize(cell_size)
-	tile.set_level(0)
+	tile.set_level(level)
 	tile.grid_pos = p
 	tile.position = cell_position(p)
 	add_child(tile)
 	cells[p.y][p.x] = tile
 	tile.appear()
 	return tile
+
+
+# Takes a tile off the board with a shrink animation.
+func remove_tile(tile: Tile) -> void:
+	cells[tile.grid_pos.y][tile.grid_pos.x] = null
+	tile.vanish()
+
+
+# Grid cell under a point in board-local coordinates, or (-1, -1).
+func cell_at(local: Vector2) -> Vector2i:
+	for y in SIZE:
+		for x in SIZE:
+			var p := Vector2i(x, y)
+			if Rect2(cell_position(p), Vector2(cell_size, cell_size)).has_point(local):
+				return p
+	return Vector2i(-1, -1)
+
+
+func unlock_all() -> void:
+	for tile in tiles():
+		tile.locked = false
 
 
 # Slides every tile toward `dir`. Returns true if anything moved.
@@ -127,15 +151,13 @@ func move(dir: Vector2i) -> bool:
 
 			var other := tile_at(next)
 			if other != null and other.level == tile.level and not other.locked and other.level < MAX_LEVEL:
-				_merge(tile, other)
+				merge_into(tile, other)
 				changed = true
 			elif target != tile.grid_pos:
 				_slide(tile, target)
 				changed = true
 
-	for tile in tiles():
-		tile.locked = false
-
+	unlock_all()
 	return changed
 
 
@@ -166,7 +188,7 @@ func _slide(tile: Tile, target: Vector2i) -> void:
 	tile.create_tween().tween_property(tile, "position", cell_position(target), MOVE_TIME)
 
 
-func _merge(tile: Tile, into: Tile) -> void:
+func merge_into(tile: Tile, into: Tile) -> void:
 	cells[tile.grid_pos.y][tile.grid_pos.x] = null
 	into.locked = true
 
