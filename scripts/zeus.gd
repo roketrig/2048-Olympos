@@ -109,6 +109,35 @@ func try_rescue() -> bool:
 	return false
 
 
+# Reward for watching an ad on the game over screen: always frees the board.
+func revive() -> void:
+	acted()
+	for steps in [1, 2]:
+		var tile := _pick_target(steps, true)
+		if tile != null:
+			banner("ZEUS SAVES YOU!", Palette.GOLD)
+			await _strike(tile, steps)
+			return
+
+	# no strike opens a merge: smite the three smallest tiles to make room
+	banner("ZEUS SMITES!", Palette.GOLD)
+	sfx.play("thunder")
+	strobe(Color.WHITE)
+	Fx.shake(shaker, 4, 0.4)
+	var victims := board.tiles()
+	victims.sort_custom(func(a: Tile, b: Tile) -> bool: return a.level < b.level)
+	var from := portrait_point()
+	for tile in victims.slice(0, 3):
+		var to := tile_point(tile)
+		_spawn_bolt(from, to)
+		sfx.play("zap")
+		await wait(0.09)
+		Fx.sparks(effects, to, Palette.GOLD, 10, 18.0)
+		board.remove_tile(tile)
+		from = to
+	await wait(0.4)
+
+
 # Prefers tiles that will match a neighbor after the strike, so the strike
 # opens up a merge. Otherwise picks one of the smaller tiles on the board.
 func _pick_target(steps: int, helpful_only: bool) -> Tile:

@@ -30,3 +30,7 @@ Eros: `merge_chance` 0.08, `cooldown_moves` 4, `potion_chance` 0.06 (birleştirm
 
 - **Android:** `export_presets.cfg` içinde AAB (Gradle) hazır. Release imzası ortam değişkenlerinden okunur: `GODOT_ANDROID_KEYSTORE_RELEASE_PATH`, `_USER`, `_PASSWORD`. İlk export'tan önce Godot'da *Proje → Android Derleme Şablonunu Yükle*.
 - **iOS:** Xcode projesi üretir; derleme için macOS + Xcode ve Apple Developer hesabı gerekir.
+
+## Reklamlar
+
+Alt/üst banner, sıklık sınırlı interstitial ve isteğe bağlı ödüllü reklamlar `scripts/ads.gd` üzerinden yönetilir. AdMob kurulumu, uygulanan kurallar ve mağaza adımları için [ADS.md](ADS.md); gizlilik politikası taslağı için [PRIVACY.md](PRIVACY.md).

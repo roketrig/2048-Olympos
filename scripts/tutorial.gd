@@ -54,6 +54,7 @@ const PAGE_EROS := 2
 const PAGE_ARES := 4
 
 var sfx: Sfx
+var ads: Ads
 var box: Control # screen-sized; positioned by main like the rest of the UI
 
 var _page := 0
@@ -61,6 +62,7 @@ var _single := false
 var _content: Control
 var _back: PixelButton
 var _next: PixelButton
+var _privacy: PixelButton
 
 
 func _init() -> void:
@@ -82,15 +84,24 @@ func _init() -> void:
 	_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(_content)
 
-	_back = PixelButton.new("BACK", 50, 18, Palette.CELL.lightened(0.15))
-	_back.position = Vector2(16, 254)
+	_back = PixelButton.new("BACK", 44, 18, Palette.CELL.lightened(0.15))
+	_back.position = Vector2(14, 254)
 	_back.pressed.connect(func() -> void: _turn(-1))
 	box.add_child(_back)
 
-	_next = PixelButton.new("NEXT", 50, 18)
-	_next.position = Vector2(114, 254)
+	_next = PixelButton.new("NEXT", 44, 18)
+	_next.position = Vector2(122, 254)
 	_next.pressed.connect(func() -> void: _turn(1))
 	box.add_child(_next)
+
+	# consent can be changed here when the ad SDK says it applies (UMP)
+	_privacy = PixelButton.new("PRIVACY", 48, 18, Palette.CELL)
+	_privacy.position = Vector2(66, 254)
+	_privacy.pressed.connect(func() -> void:
+		sfx.play("click")
+		ads.show_privacy_options()
+	)
+	box.add_child(_privacy)
 
 
 func open(page := 0, single := false) -> void:
@@ -134,7 +145,8 @@ func _show_page() -> void:
 
 	_back.visible = not _single and _page > 0
 	_next.text = "OK" if _single else ("PLAY" if _page == PAGES.size() - 1 else "NEXT")
-	_next.position.x = 65 if _single else 114
+	_next.position.x = 68 if _single else 122
+	_privacy.visible = not _single and ads != null and ads.privacy_options_required()
 
 
 func _add_label(text: String, px: int, color: Color, at: Vector2) -> void:

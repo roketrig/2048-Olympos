@@ -13,6 +13,7 @@ var eros: Eros
 var ares: Ares
 var gods: Array[God] = []
 var sfx: Sfx
+var ads: Ads
 
 var score := 0
 var hiscore := 0
@@ -25,6 +26,9 @@ var over := false
 var potions := 0
 var held_level := -1
 var picking := false
+var offering := false # first tap on an empty heart offers a rewarded ad
+var potion_ads_used := 0
+var continued := false # the rewarded "continue" is offered once per game
 
 var _screen: Control
 var _shaker: Control
@@ -36,6 +40,9 @@ var _held_slot: HeldSlot
 var _sound_button: PixelButton
 var _hint: PixelLabel
 var _game_over: Control
+var _game_over_tween: Tween
+var _continue_button: PixelButton
+var _game_over_panel: Box
 var _tutorial: Tutorial
 var _game_over_box: Control
 var _final_score: PixelLabel
@@ -50,7 +57,11 @@ func _ready() -> void:
 	sfx.enabled = sound_on
 	add_child(sfx)
 
+	ads = Ads.new()
+	add_child(ads)
+
 	_build_ui()
+	ads.layout_changed.connect(_layout)
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 	new_game()
@@ -65,8 +76,13 @@ func new_game() -> void:
 	potions = 0
 	held_level = -1
 	picking = false
+	offering = false
+	potion_ads_used = 0
+	continued = false
 	_update_score_labels()
 
+	if _game_over_tween != null:
+		_game_over_tween.kill()
 	_game_over.visible = false
 	_game_over.modulate.a = 0.0
 
@@ -82,6 +98,7 @@ func try_move(dir: Vector2i) -> void:
 	if busy or over:
 		return
 	picking = false
+	offering = false
 	if not board.move(dir):
 		_refresh_ui()
 		return
@@ -140,6 +157,9 @@ func _on_tap(at: Vector2) -> void:
 	var cell := board.cell_at(board.get_global_transform().affine_inverse() * at)
 	if cell.x < 0:
 		return
+	if offering:
+		offering = false
+		_refresh_ui()
 
 	var tile := board.tile_at(cell)
 	if picking and tile != null:
@@ -171,15 +191,32 @@ func _drop(cell: Vector2i) -> void:
 
 
 func _on_potion_pressed() -> void:
-	if busy or over or held_level >= 0 or potions == 0:
+	if busy or over or held_level >= 0:
 		return
-	picking = not picking
 	sfx.play("click")
+
+	if potions > 0:
+		picking = not picking
+	elif offering:
+		offering = false
+		busy = true
+		var earned: bool = await ads.show_rewarded()
+		busy = false
+		if earned:
+			potion_ads_used += 1
+			potions += 1
+			eros.gift_potion(eros.to_effects(_potion_button.global_position + _potion_button.size / 2.0))
+	elif _can_offer_potion_ad():
+		offering = true
 	_refresh_ui()
 
 
+func _can_offer_potion_ad() -> bool:
+	return potion_ads_used < Ads.REWARDED_POTIONS_PER_GAME and ads.rewarded_ready()
+
+
 func _input(event: InputEvent) -> void:
-	if _tutorial.visible:
+	if _tutorial.visible or ads.is_showing():
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
@@ -226,9 +263,10 @@ func _update_score_labels() -> void:
 
 
 func _refresh_ui() -> void:
-	_potion_button.text = "x%d" % potions
-	_potion_button.disabled = potions == 0 or held_level >= 0
-	_potion_button.highlighted = picking
+	var can_offer := potions == 0 and _can_offer_potion_ad()
+	_potion_button.text = "AD" if can_offer else "x%d" % potions
+	_potion_button.disabled = held_level >= 0 or (potions == 0 and not can_offer)
+	_potion_button.highlighted = picking or offering
 	_potion_button.queue_redraw()
 
 	_held_slot.level = held_level
@@ -238,7 +276,10 @@ func _refresh_ui() -> void:
 	_score_box.hot = ares.is_raging()
 	_score_box.queue_redraw()
 
-	if picking:
+	if offering:
+		_hint.text = "TAP AGAIN: AD FOR A POTION"
+		_hint.color = Eros.PINK
+	elif picking:
 		_hint.text = "TAP A TILE TO LIFT IT"
 		_hint.color = Eros.PINK
 	elif held_level >= 0:
@@ -256,10 +297,44 @@ func _show_game_over() -> void:
 	over = true
 	sfx.play("over")
 	_final_score.text = "SCORE %d" % score
+	_continue_button.visible = not continued and ads.rewarded_ready()
+	_game_over_panel.size.y = 104 if _continue_button.visible else 80
+	ads.count_game_over()
 	_game_over.visible = true
-	var tween := create_tween()
-	tween.tween_interval(0.8)
-	tween.tween_property(_game_over, "modulate:a", 1.0, 0.3)
+	_game_over_tween = create_tween()
+	_game_over_tween.tween_interval(0.8)
+	_game_over_tween.tween_property(_game_over, "modulate:a", 1.0, 0.3)
+
+
+# Interstitials only ever show here, on the way into a new game, and only as
+# often as the caps in Ads allow.
+func _on_try_again() -> void:
+	if busy:
+		return
+	sfx.play("click")
+	busy = true
+	await ads.show_interstitial_if_due()
+	new_game()
+
+
+# Rewarded continue: Zeus frees the board once per game.
+func _on_continue() -> void:
+	if busy:
+		return
+	sfx.play("click")
+	busy = true
+	var earned: bool = await ads.show_rewarded()
+	if earned:
+		continued = true
+		over = false
+		_game_over_tween.kill()
+		_game_over.visible = false
+		_game_over.modulate.a = 0.0
+		await zeus.revive()
+		_refresh_ui()
+		if not board.can_move():
+			_show_game_over()
+	busy = false
 
 
 func _toggle_sound() -> void:
@@ -289,11 +364,27 @@ func _save() -> void:
 
 # --- UI ---------------------------------------------------------------------
 
+# Fits the game between the ad banners and the notch / home indicator. Short
+# screens drop the top banner first; if it still does not fit, the game shrinks.
 func _layout() -> void:
-	var origin := ((get_viewport_rect().size - SCREEN) / 2.0).floor()
-	_screen.position = origin
-	_game_over_box.position = origin
-	_tutorial.box.position = origin
+	var viewport := get_viewport_rect().size
+	if ads.top_banner and viewport.y - ads.top_inset() - ads.bottom_inset() < SCREEN.y:
+		ads.top_banner = false # emits layout_changed, which lays out again
+		return
+
+	var top := ads.top_inset()
+	var area := Rect2(0, top, viewport.x, viewport.y - top - ads.bottom_inset())
+	var fit := minf(1.0, minf(area.size.x / SCREEN.x, area.size.y / SCREEN.y))
+
+	# keep every game pixel a whole number of screen pixels so the art stays
+	# crisp (phones are ~6 screen pixels per game pixel; tiny previews skip this)
+	var window_scale := DisplayServer.window_get_size().y / viewport.y
+	if window_scale * fit >= 3.0:
+		fit = floorf(window_scale * fit) / window_scale
+	var origin := ((area.position + (area.size - SCREEN * fit) / 2.0) * window_scale).floor() / window_scale
+	for box in [_screen, _game_over_box, _tutorial.box]:
+		box.scale = Vector2(fit, fit)
+		box.position = origin
 
 
 func _build_ui() -> void:
@@ -388,25 +479,27 @@ func _build_ui() -> void:
 	_game_over_box.size = SCREEN
 	_game_over.add_child(_game_over_box)
 
-	var panel := Box.new()
-	panel.size = Vector2(136, 80)
-	_place(_game_over_box, panel, Vector2(22, 128))
-	_place(_game_over_box, _centered("GAME OVER", 2, Palette.GOLD, SCREEN.x, Palette.INK), Vector2(0, 140))
+	_game_over_panel = Box.new()
+	_game_over_panel.size = Vector2(140, 104)
+	_place(_game_over_box, _game_over_panel, Vector2(20, 116))
+	_place(_game_over_box, _centered("GAME OVER", 2, Palette.GOLD, SCREEN.x, Palette.INK), Vector2(0, 128))
 	_final_score = _centered("SCORE 0", 1, Palette.LIGHT, SCREEN.x)
-	_place(_game_over_box, _final_score, Vector2(0, 164))
+	_place(_game_over_box, _final_score, Vector2(0, 152))
 
-	var again := PixelButton.new("TRY AGAIN", 70, 16)
-	again.pressed.connect(func() -> void:
-		sfx.play("click")
-		new_game()
-	)
-	_place(_game_over_box, again, Vector2(55, 184))
+	var again := PixelButton.new("TRY AGAIN", 70, 18)
+	again.pressed.connect(_on_try_again)
+	_place(_game_over_box, again, Vector2(55, 168))
+
+	_continue_button = PixelButton.new("WATCH AD TO CONTINUE", 128, 18, Palette.GOLD_DARK)
+	_continue_button.pressed.connect(_on_continue)
+	_place(_game_over_box, _continue_button, Vector2(26, 194))
 
 	_ignore_mouse(self)
 
 	# how-to-play pages on top of everything; blocks touches to the game below
 	_tutorial = Tutorial.new()
 	_tutorial.sfx = sfx
+	_tutorial.ads = ads
 	_ignore_mouse(_tutorial.box)
 	_tutorial.closed.connect(func() -> void:
 		if not tutorial_seen:
