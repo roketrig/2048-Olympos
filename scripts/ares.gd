@@ -103,7 +103,7 @@ func after_move() -> bool:
 	acted()
 	_screaming = true
 	queue_redraw()
-	sfx.play("scream")
+	sfx.play("roar")
 	banner("ARES ROARS!", RED)
 	strobe(RED, [0.6, 0.0, 0.4, 0.0, 0.3, 0.0])
 	Fx.shake(shaker, 4, 0.5)

@@ -17,6 +17,7 @@ var sfx: Sfx
 var score := 0
 var hiscore := 0
 var sound_on := true
+var tutorial_seen := false
 var busy := false
 var over := false
 
@@ -35,6 +36,7 @@ var _held_slot: HeldSlot
 var _sound_button: PixelButton
 var _hint: PixelLabel
 var _game_over: Control
+var _tutorial: Tutorial
 var _game_over_box: Control
 var _final_score: PixelLabel
 var _swipe_start := Vector2.ZERO
@@ -52,6 +54,8 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 	new_game()
+	if not tutorial_seen:
+		_tutorial.open()
 
 
 func new_game() -> void:
@@ -120,7 +124,18 @@ func _check_stuck() -> void:
 
 
 func _on_tap(at: Vector2) -> void:
-	if busy or over:
+	if over:
+		return
+
+	# tapping a god explains what it does
+	var pages := {zeus: Tutorial.PAGE_ZEUS, eros: Tutorial.PAGE_EROS, ares: Tutorial.PAGE_ARES}
+	for god in gods:
+		if god.get_global_rect().has_point(at):
+			sfx.play("click")
+			_tutorial.open(pages[god], true)
+			return
+
+	if busy:
 		return
 	var cell := board.cell_at(board.get_global_transform().affine_inverse() * at)
 	if cell.x < 0:
@@ -164,6 +179,8 @@ func _on_potion_pressed() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _tutorial.visible:
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_UP, KEY_W:
@@ -231,7 +248,7 @@ func _refresh_ui() -> void:
 		_hint.text = "ARES RAGE: SCORE x%s" % str(ares.score_multiplier)
 		_hint.color = Ares.RED
 	else:
-		_hint.text = "SWIPE TO MERGE TILES"
+		_hint.text = "TAP A GOD TO SEE WHAT IT DOES" if score == 0 else "SWIPE TO MERGE TILES"
 		_hint.color = Palette.DIM
 
 
@@ -259,12 +276,14 @@ func _load_save() -> void:
 		return
 	hiscore = config.get_value("game", "hiscore", 0)
 	sound_on = config.get_value("settings", "sound", true)
+	tutorial_seen = config.get_value("settings", "tutorial_seen", false)
 
 
 func _save() -> void:
 	var config := ConfigFile.new()
 	config.set_value("game", "hiscore", hiscore)
 	config.set_value("settings", "sound", sound_on)
+	config.set_value("settings", "tutorial_seen", tutorial_seen)
 	config.save(SAVE_PATH)
 
 
@@ -274,6 +293,7 @@ func _layout() -> void:
 	var origin := ((get_viewport_rect().size - SCREEN) / 2.0).floor()
 	_screen.position = origin
 	_game_over_box.position = origin
+	_tutorial.box.position = origin
 
 
 func _build_ui() -> void:
@@ -290,6 +310,13 @@ func _build_ui() -> void:
 	# header: title + score boxes
 	_place(_shaker, PixelLabel.new("2048", 3, Palette.GOLD, Palette.GOLD_DARK), Vector2(6, 6))
 	_place(_shaker, PixelLabel.new("OLYMPOS", 1, Palette.DIM), Vector2(7, 31))
+
+	var help := PixelButton.new("?", 13, 12, Palette.CELL.lightened(0.15))
+	help.pressed.connect(func() -> void:
+		sfx.play("click")
+		_tutorial.open()
+	)
+	_place(_shaker, help, Vector2(53, 29))
 	_score_box = _make_score_box(Vector2(80, 6), "SCORE")
 	_score_label = _score_box.value
 	_hiscore_label = _make_score_box(Vector2(128, 6), "BEST").value
@@ -376,6 +403,17 @@ func _build_ui() -> void:
 	_place(_game_over_box, again, Vector2(55, 184))
 
 	_ignore_mouse(self)
+
+	# how-to-play pages on top of everything; blocks touches to the game below
+	_tutorial = Tutorial.new()
+	_tutorial.sfx = sfx
+	_ignore_mouse(_tutorial.box)
+	_tutorial.closed.connect(func() -> void:
+		if not tutorial_seen:
+			tutorial_seen = true
+			_save()
+	)
+	add_child(_tutorial)
 
 
 func _make_score_box(at: Vector2, caption: String) -> Box:

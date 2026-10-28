@@ -29,7 +29,7 @@ func _ready() -> void:
 		"potion": _synth([[700, 1400, 0.08, "square", 0.12], [900, 1800, 0.1, "square", 0.12]]),
 		"lift": _synth([[300, 900, 0.08, "square", 0.12]]),
 		"drop": _synth([[900, 300, 0.08, "square", 0.12]]),
-		"scream": _synth([[620, 260, 0.4, "saw", 0.2], [260, 90, 0.3, "noise", 0.35]]),
+		"roar": _roar(),
 		"shatter": _synth([[0, 0, 0.15, "noise", 0.25]]),
 	}
 
@@ -47,6 +47,45 @@ func play(sound: String, pitch := 1.0) -> void:
 	player.stream = _streams[sound]
 	player.pitch_scale = pitch
 	player.play()
+
+
+# Ares's war cry: a drum boom under a growling, shaking "RAAAH".
+static func _roar() -> AudioStreamWAV:
+	var count := int(1.0 * RATE)
+	var data := PackedByteArray()
+	data.resize(count * 2)
+	var voice := 0.0
+	var fifth := 0.0
+	var drum := 0.0
+	var noise := 0.0
+
+	for i in count:
+		var t := float(i) / count
+		var seconds := float(i) / RATE
+
+		# pitch jumps up fast, then slides down; vibrato makes it shake
+		var pitch := lerpf(95.0, 165.0, t / 0.2) if t < 0.2 else lerpf(165.0, 70.0, (t - 0.2) / 0.8)
+		pitch *= 1.0 + 0.05 * sin(TAU * 7.0 * seconds)
+		voice = fmod(voice + pitch / RATE, 1.0)
+		fifth = fmod(fifth + pitch * 1.5 / RATE, 1.0)
+		if i % 2 == 0:
+			noise = randf_range(-1.0, 1.0)
+
+		var rattle := 0.6 + 0.4 * sin(TAU * 28.0 * seconds) # throat growl
+		var cry := ((2.0 * voice - 1.0) * 0.55 + (1.0 if fifth < 0.5 else -1.0) * 0.2 + noise * 0.35) * rattle
+		var cry_envelope := minf(1.0, t / 0.06) * (1.0 - smoothstep(0.55, 1.0, t))
+
+		drum = fmod(drum + lerpf(90.0, 40.0, minf(seconds / 0.25, 1.0)) / RATE, 1.0)
+		var boom := sin(TAU * drum) * maxf(0.0, 1.0 - seconds / 0.3)
+
+		var sample := cry * cry_envelope * 0.32 + boom * 0.5
+		data.encode_s16(i * 2, int(clampf(sample, -1.0, 1.0) * 32767))
+
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = RATE
+	stream.data = data
+	return stream
 
 
 static func _synth(notes: Array) -> AudioStreamWAV:
