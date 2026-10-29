@@ -181,6 +181,21 @@ func upgrade(tile: Tile, steps: int) -> void:
 	score_gained.emit(tile.value() - old_value)
 
 
+# Lowers a tile by `steps` levels (each step halves it). Used by Chaos.
+func downgrade(tile: Tile, steps: int) -> void:
+	tile.set_level(maxi(tile.level - steps, 0))
+	tile.pop(0.7, 0.3)
+
+
+func empty_cells() -> Array[Vector2i]:
+	var empty: Array[Vector2i] = []
+	for y in SIZE:
+		for x in SIZE:
+			if cells[y][x] == null:
+				empty.append(Vector2i(x, y))
+	return empty
+
+
 func _slide(tile: Tile, target: Vector2i) -> void:
 	cells[tile.grid_pos.y][tile.grid_pos.x] = null
 	cells[target.y][target.x] = tile

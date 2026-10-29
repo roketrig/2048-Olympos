@@ -142,5 +142,32 @@ func banner(text: String, color: Color) -> void:
 	Fx.blink_out(label, 0.9, 4)
 
 
+func spawn_bolt(from: Vector2, to: Vector2, glow := Palette.GOLD, core := Color.WHITE) -> void:
+	var bolt := Bolt.new()
+	bolt.glow = glow
+	bolt.core = core
+	bolt.points = _jagged(from, to, maxi(3, int(from.distance_to(to) / 12.0)), 6.0)
+	var fork_start := bolt.points[bolt.points.size() / 2]
+	bolt.fork = _jagged(fork_start, fork_start + Vector2(randf_range(-20, 20), 18), 3, 3.0)
+	effects.add_child(bolt)
+
+	var tween := bolt.create_tween()
+	tween.tween_interval(0.06)
+	tween.tween_callback(bolt.hide)
+	tween.tween_interval(0.04)
+	tween.tween_callback(bolt.show)
+	tween.tween_interval(0.1)
+	tween.tween_callback(bolt.queue_free)
+
+
+func _jagged(from: Vector2, to: Vector2, segments: int, jitter: float) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	var normal := (to - from).orthogonal().normalized()
+	for i in segments + 1:
+		var offset := 0.0 if i == 0 or i == segments else randf_range(-jitter, jitter)
+		points.append((from.lerp(to, float(i) / segments) + normal * offset).floor())
+	return points
+
+
 func wait(seconds: float) -> void:
 	await get_tree().create_timer(seconds).timeout

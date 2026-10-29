@@ -37,9 +37,26 @@ const STRINGS := {
 		"ok": "OK",
 		"privacy": "PRIVACY",
 		"credits": "CREDITS",
-		"win_title": "2048!",
-		"win_text": "THE GODS ARE PLEASED.",
-		"keep_going": "KEEP GOING",
+		"chaos": "CHAOS",
+		"hp": "HP %d/%d",
+		"banner_chaos": "CHAOS AWAKENS!",
+		"banner_split": "SHATTER!",
+		"banner_flood": "CURSE OF 2S!",
+		"potion_minus": "-POTION",
+		"hint_boss": "MERGE TILES TO HURT CHAOS",
+		"hint_curse": "CHAOS CURSE: HITS x%s",
+		"intro_title": "2048!",
+		"intro_1": "BUT CHAOS AWAKENS...",
+		"intro_2": "THE GODS ARE GONE.",
+		"intro_3": "MERGE TILES TO",
+		"intro_4": "DAMAGE HIM!",
+		"fight": "FIGHT!",
+		"victory_title": "VICTORY!",
+		"victory_1": "CHAOS IS DEFEATED.",
+		"victory_2": "THE GODS RETURN!",
+		"victory_3": "+2048 BONUS",
+		"victory_4": "",
+		"continue": "CONTINUE",
 		"credits_by": "A GAME BY",
 		"credits_engine": "MADE WITH GODOT ENGINE",
 		"credits_licenses": "LICENSES:",
@@ -71,9 +88,26 @@ const STRINGS := {
 		"ok": "TAMAM",
 		"privacy": "GİZLİLİK",
 		"credits": "HAKKINDA",
-		"win_title": "2048!",
-		"win_text": "TANRILAR MEMNUN.",
-		"keep_going": "DEVAM ET",
+		"chaos": "KAOS",
+		"hp": "CAN %d/%d",
+		"banner_chaos": "KAOS UYANDI!",
+		"banner_split": "PARÇALANMA!",
+		"banner_flood": "2'LERİN LANETİ!",
+		"potion_minus": "-İKSİR",
+		"hint_boss": "BİRLEŞTİR, KAOS'A VUR!",
+		"hint_curse": "KAOS LANETİ: HASAR x%s",
+		"intro_title": "2048!",
+		"intro_1": "AMA KAOS UYANDI...",
+		"intro_2": "TANRILAR YOK OLDU.",
+		"intro_3": "TAŞLARI BİRLEŞTİR,",
+		"intro_4": "KAOS'A HASAR VER!",
+		"fight": "SAVAŞ!",
+		"victory_title": "ZAFER!",
+		"victory_1": "KAOS YENİLDİ.",
+		"victory_2": "TANRILAR GERİ DÖNDÜ!",
+		"victory_3": "+2048 BONUS",
+		"victory_4": "",
+		"continue": "DEVAM ET",
 		"credits_by": "YAPIMCI",
 		"credits_engine": "GODOT ENGINE İLE YAPILDI",
 		"credits_licenses": "LİSANSLAR:",
@@ -168,12 +202,38 @@ const PAGES := {
 }
 
 
+# Shown when the player taps Chaos; kept out of the regular pages so the boss
+# stays a surprise.
+const CHAOS_PAGE := {
+	"en": {"title": "CHAOS", "art": "chaos", "lines": [
+		"LORD OF DISORDER.",
+		"MERGE TILES TO HURT HIM.",
+		"HE HALVES TILES, SPLITS",
+		"THEM, FLOODS THE BOARD",
+		"WITH 2S, WEAKENS HITS",
+		"AND STEALS POTIONS.",
+	]},
+	"tr": {"title": "KAOS", "art": "chaos", "lines": [
+		"DÜZENSİZLİĞİN EFENDİSİ.",
+		"BİRLEŞTİR, HASAR VER.",
+		"TAŞLARI YARILAR, BÖLER,",
+		"TAHTAYI 2'LERLE DOLDURUR,",
+		"VURUŞLARINI ZAYIFLATIR,",
+		"İKSİR ÇALAR.",
+	]},
+}
+
+
 static func t(key: String) -> String:
 	return STRINGS[lang].get(key, STRINGS["en"].get(key, key))
 
 
 static func pages() -> Array:
 	return PAGES[lang]
+
+
+static func chaos_page() -> Dictionary:
+	return CHAOS_PAGE[lang]
 
 
 # Turkish phones start in Turkish, everything else in English.

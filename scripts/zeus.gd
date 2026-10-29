@@ -6,7 +6,7 @@ extends God
 # chains from tile to tile, doubling each one. Multipliers stay powers of two
 # so struck tiles can still merge with the rest of the board.
 
-@export_range(0.0, 1.0) var strike_chance := 0.12
+@export_range(0.0, 1.0) var strike_chance := 0.10
 @export var cooldown_moves := 3 # minimum moves between two strikes
 @export_range(0.0, 1.0) var x4_chance := 0.2
 @export_range(0.0, 1.0) var chain_chance := 0.2 # share of strikes that chain
@@ -129,7 +129,7 @@ func revive() -> void:
 	var from := portrait_point()
 	for tile in victims.slice(0, 3):
 		var to := tile_point(tile)
-		_spawn_bolt(from, to)
+		spawn_bolt(from, to)
 		sfx.play("zap")
 		await wait(0.09)
 		Fx.sparks(effects, to, Palette.GOLD, 10, 18.0)
@@ -191,7 +191,7 @@ func _strike(tile: Tile, steps: int) -> void:
 	sfx.play("thunder")
 
 	var to := tile_point(tile)
-	_spawn_bolt(portrait_point(), to)
+	spawn_bolt(portrait_point(), to)
 	strobe(Color.WHITE)
 	Fx.shake(shaker, 3, 0.3)
 
@@ -220,7 +220,7 @@ func _chain_strike(chain: Array[Tile]) -> void:
 		if not is_instance_valid(tile):
 			continue
 		var to := tile_point(tile)
-		_spawn_bolt(from, to)
+		spawn_bolt(from, to)
 		sfx.play("zap", 1.0 + i * 0.15)
 		await wait(0.09)
 
@@ -231,50 +231,3 @@ func _chain_strike(chain: Array[Tile]) -> void:
 
 	sfx.play("bonus")
 	await wait(0.5)
-
-
-func _spawn_bolt(from: Vector2, to: Vector2) -> void:
-	var bolt := Bolt.new()
-	bolt.points = _jagged(from, to, maxi(3, int(from.distance_to(to) / 12.0)), 6.0)
-	var fork_start := bolt.points[bolt.points.size() / 2]
-	bolt.fork = _jagged(fork_start, fork_start + Vector2(randf_range(-20, 20), 18), 3, 3.0)
-	effects.add_child(bolt)
-
-	var tween := bolt.create_tween()
-	tween.tween_interval(0.06)
-	tween.tween_callback(bolt.hide)
-	tween.tween_interval(0.04)
-	tween.tween_callback(bolt.show)
-	tween.tween_interval(0.1)
-	tween.tween_callback(bolt.queue_free)
-
-
-func _jagged(from: Vector2, to: Vector2, segments: int, jitter: float) -> PackedVector2Array:
-	var points := PackedVector2Array()
-	var normal := (to - from).orthogonal().normalized()
-	for i in segments + 1:
-		var offset := 0.0 if i == 0 or i == segments else randf_range(-jitter, jitter)
-		points.append((from.lerp(to, float(i) / segments) + normal * offset).floor())
-	return points
-
-
-# Pixel lightning: chunky gold glow with a 1px white core.
-class Bolt extends Node2D:
-	var points := PackedVector2Array()
-	var fork := PackedVector2Array()
-
-	func _draw() -> void:
-		for path in [points, fork]:
-			_path(path, 3, Palette.GOLD)
-		for path in [points, fork]:
-			_path(path, 1, Color.WHITE)
-
-	func _path(path: PackedVector2Array, width: int, color: Color) -> void:
-		var half := floorf(width / 2.0)
-		for i in path.size() - 1:
-			var a := path[i]
-			var b := path[i + 1]
-			var steps := maxi(1, int(maxf(absf(b.x - a.x), absf(b.y - a.y))))
-			for s in steps + 1:
-				var p := a.lerp(b, float(s) / steps).floor()
-				draw_rect(Rect2(p - Vector2(half, half), Vector2(width, width)), color)

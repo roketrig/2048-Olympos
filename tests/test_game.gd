@@ -238,8 +238,10 @@ func _run() -> void:
 	I18n.lang = "tr"
 	main._apply_texts()
 	_check(main._new_button.text == "YENİ OYUN" and main._score_box.caption.text == "SKOR", "Turkish UI texts")
-	for button in [main._new_button, main._try_again, main._continue_button, main._keep_going]:
+	for button in [main._new_button, main._try_again, main._continue_button]:
 		_check(PixelFont.measure(button.text, 1).x <= button.size.x - 4, "Turkish button text fits: %s" % button.text)
+	for key in ["fight", "continue"]:
+		_check(PixelFont.measure(I18n.t(key), 1).x <= main._card_button.size.x - 4, "Turkish card button fits: %s" % I18n.t(key))
 	if shot_path != "":
 		main._tutorial.open()
 		await create_timer(0.2).timeout
@@ -287,21 +289,93 @@ func _run() -> void:
 	_check(restored == expected and main.score == 1234 and main.potions == 2 and main.held_level == 4 and ares.rage_left == 3, "board, score, potions, hand and rage restored")
 	main.new_game()
 
-	# 2048 celebration
+	# --- Chaos boss fight ---
+	var chaos: Chaos = main.chaos
 	for god in main.gods:
-		god._moves_since_action = -1000 # keep the gods out of this move
+		god._moves_since_action = -1000 # keep the gods out of these moves
 	_fill([[9, 9, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]])
-	main.won = false
-	await main.try_move(Vector2i.LEFT)
-	_check(main._win.visible and main.won, "reaching 2048 shows the celebration")
+	main.try_move(Vector2i.LEFT)
+	await create_timer(1.4).timeout
+	_check(main.boss_active and main._card.visible, "first 2048 wakes Chaos with the intro card")
+	_check(main.gods.all(func(g: God) -> bool: return not g.visible) and chaos.is_visible_in_tree(), "gods vanish, Chaos appears")
+	_check(main.sfx.music_playing(), "boss music plays")
 	if shot_path != "":
-		await create_timer(0.15).timeout
 		await RenderingServer.frame_post_draw
-		_save(shot_path.replace(".png", "_win.png"))
+		_save(shot_path.replace(".png", "_boss_intro.png"))
+	main._card_button.pressed.emit()
+	await create_timer(0.3).timeout
+	_check(not main._card.visible and not main.busy, "FIGHT closes the card and play resumes")
+
+	chaos._moves_since_action = -1000 # no Chaos moves while measuring damage
+	_fill([[0, 0, -1, -1], [1, 1, -1, -1], [10, -1, -1, -1], [-1, -1, -1, -1]])
+	var hp_before := chaos.hp
+	await main.try_move(Vector2i.LEFT)
+	_check(chaos.hp == hp_before - 12, "merges hurt Chaos for their value (%d -> %d)" % [hp_before, chaos.hp])
+	chaos.curse_left = 3
+	_fill([[0, 0, -1, -1], [-1, -1, -1, -1], [10, -1, -1, -1], [-1, -1, -1, -1]])
+	hp_before = chaos.hp
+	await main.try_move(Vector2i.LEFT)
+	_check(chaos.hp == hp_before - 2, "curse halves damage (%d -> %d)" % [hp_before, chaos.hp])
+	chaos.curse_left = 0
+	if shot_path != "":
+		await create_timer(0.3).timeout
+		await RenderingServer.frame_post_draw
+		_save(shot_path.replace(".png", "_boss.png"))
+
+	_fill([[3, 3, 5, 9], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]])
+	var levels_sum := func() -> int:
+		var total := 0
+		for t in board.tiles():
+			total += t.level
+		return total
+	var before_halve: int = levels_sum.call()
+	_check(await chaos._halve(), "Chaos halves a tile")
+	_check(levels_sum.call() < before_halve and board.tile_at(Vector2i(3, 0)).level == 9, "a tile shrank, the biggest was spared")
+
+	_fill([[3, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]])
+	main.potions = 1
+	_check(await chaos._split(), "Chaos splits")
+	var split_levels := board.tiles().map(func(t: Tile) -> int: return t.level)
+	_check(split_levels == [2, 2] and main.potions == 0, "16 split into 8 + 8 and a potion was stolen (%s)" % [split_levels])
+
+	_fill([[3, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, 5]])
+	_check(await chaos._flood(), "Chaos floods")
+	_check(board.tiles().size() == 5 and chaos.curse_left == chaos.curse_moves, "three 2s poured in and the curse is on")
+	chaos.curse_left = 0
+
+	main._on_tap(chaos.get_global_rect().get_center())
+	_check(main._tutorial.visible and not main._tutorial._custom.is_empty(), "tapping Chaos opens his card")
+	main._tutorial.close()
+
+	main._save_game()
+	var saved_hp := chaos.hp
+	main.boss_active = false
+	chaos.hp = 1
+	main._load_game()
+	_check(main.boss_active and chaos.hp == saved_hp and not main.zeus.visible, "boss fight resumes after relaunch")
+
+	chaos._moves_since_action = -1000
+	chaos.hp = 5
+	var score_before: int = main.score
+	_fill([[1, 1, -1, -1], [-1, -1, -1, -1], [10, -1, -1, -1], [-1, -1, -1, -1]])
+	main.try_move(Vector2i.LEFT)
+	await create_timer(1.4).timeout
+	_check(main._card.visible and main.boss_done and not main.boss_active, "Chaos defeated: victory card")
+	_check(main.gods.all(func(g: God) -> bool: return g.visible) and not main.sfx.music_playing(), "gods return, music stops")
+	_check(main.score >= score_before + Chaos.new().max_hp * 0 + 2048, "victory bonus +2048")
+	if shot_path != "":
+		await RenderingServer.frame_post_draw
+		_save(shot_path.replace(".png", "_victory.png"))
 	main._on_back()
-	_check(not main._win.visible, "back closes the celebration")
+	await create_timer(0.3).timeout
+	_check(not main._card.visible, "back closes the victory card")
+
+	_fill([[9, 9, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]])
+	await main.try_move(Vector2i.LEFT)
+	_check(not main.boss_active and not main._card.visible, "Chaos comes only once per game")
 	for god in main.gods:
 		god._moves_since_action = 0
+	main.new_game()
 
 	# love potion: lift a tile and drop it elsewhere
 	_fill([[3, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, 0]])

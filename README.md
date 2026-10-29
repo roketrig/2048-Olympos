@@ -6,6 +6,8 @@
 - **Eros:** Yan yana duran bütün eş sayıları aynı anda birleştirir. Birleştirme yaptıkça ara sıra **aşk iksiri** düşürür: iksirle bir taşı tahtadan alıp istediğin zaman boş bir kareye geri koyabilirsin.
 - **Ares:** Savaş çığlığı atar: tahtadaki bütün 2'leri temizler ve 8 hamle boyunca kazanılan skoru **x1.5** yapar.
 
+İlk 2048 taşında tanrılar yok olur ve **Kaos** gelir: canı olan bir boss. Birleştirdiğin taşlar ona hasar verir; o da tanrıların tersini yapar (taşı yarılar, böler, tahtaya 2 döker). Kaos yenilince tanrılar geri döner.
+
 Godot 4.7 ile yazıldı; 180x320 piksel çözünürlükte çizilip ekrana ölçeklenir. Font, Zeus sprite'ı ve chiptune sesler kodla üretilir, harici asset yok. Android ve iOS hedefleniyor.
 
 ## Çalıştırma

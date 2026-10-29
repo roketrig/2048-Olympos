@@ -4,7 +4,7 @@ extends God
 # Ares lets out a war cry: every 2 on the board is blown away and, for a few
 # moves, all points scored are multiplied.
 
-@export_range(0.0, 1.0) var scream_chance := 0.07
+@export_range(0.0, 1.0) var scream_chance := 0.055
 @export var cooldown_moves := 6
 @export var rage_moves := 8
 @export var score_multiplier := 1.5

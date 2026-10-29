@@ -4,7 +4,7 @@ extends God
 # Eros shoots hearts at every pair of equal neighbors and merges them all at
 # once. He also hands out love potions as the player keeps merging.
 
-@export_range(0.0, 1.0) var merge_chance := 0.08
+@export_range(0.0, 1.0) var merge_chance := 0.065
 @export var cooldown_moves := 4
 @export_range(0.0, 1.0) var potion_chance := 0.06 # per move that merged something
 

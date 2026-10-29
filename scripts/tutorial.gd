@@ -19,6 +19,7 @@ var box: Control # screen-sized; positioned by main like the rest of the UI
 
 var _page := 0
 var _single := false
+var _custom := {} # a page outside the regular ones (the Chaos card)
 var _content: Control
 var _back: PixelButton
 var _next: PixelButton
@@ -86,7 +87,14 @@ func _init() -> void:
 func open(page := 0, single := false) -> void:
 	_page = page
 	_single = single
+	_custom = {}
 	visible = true
+	_show_page()
+
+
+func open_chaos() -> void:
+	open(0, true)
+	_custom = I18n.chaos_page()
 	_show_page()
 
 
@@ -114,7 +122,7 @@ func _show_page() -> void:
 		child.queue_free()
 
 	var pages := I18n.pages()
-	var page: Dictionary = pages[_page]
+	var page: Dictionary = _custom if not _custom.is_empty() else pages[_page]
 	var accent := _accent(page["art"])
 
 	_add_label(page["title"], 2, accent, Vector2(0, 50))
@@ -250,6 +258,8 @@ func _add_art(art: String) -> void:
 			node = Eros.new()
 		"ares":
 			node = Ares.new()
+		"chaos":
+			node = Chaos.new()
 		_:
 			var drawing := Art.new()
 			drawing.kind = art
@@ -265,6 +275,8 @@ func _accent(art: String) -> Color:
 			return Eros.PINK
 		"ares":
 			return Ares.RED
+		"chaos":
+			return Chaos.PURPLE
 	return Palette.GOLD
 
 

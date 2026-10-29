@@ -23,11 +23,16 @@ _Son güncelleme: 29 Ekim 2026_
 - [x] Android (AAB + test APK) ve iOS export ayarları.
 - [x] Credits / Lisans ekranı: "?" → HAKKINDA. Godot MIT bildirimi ve tüm alt bileşenlerin lisansları burada.
 - [x] Türkçe ve İngilizce dil desteği. Telefon Türkçeyse oyun Türkçe açılır; "?" ekranındaki TR/EN butonuyla dil değiştirilebilir.
-- [x] 2048'e ulaşınca "Tanrılar memnun" kutlama ekranı (oyun başına bir kez, sonra devam edilebilir).
+- [x] **Kaos boss savaşı** (ilk 2048 taşında, oyun başına bir kez):
+  - Tanrılar yok oluyor, kendi müziğiyle Kaos geliyor. Kaos'un 3000 canı var.
+  - Her birleştirme, taşın değeri kadar hasar veriyor.
+  - Kaos tanrıların tersini yapıyor, ama daha düşük ihtimalle: taşı yarılıyor (Zeus'un tersi), taşları ikiye bölüp iksir çalıyor (Eros'un tersi), tahtaya 2'ler döküp vuruşları yarıya indiriyor (Ares'in tersi).
+  - Kaos yenilince tanrılar geri dönüyor ve +2048 bonus geliyor.
+- [x] Tanrıların olasılıkları test geri bildirimine göre yaklaşık %15-20 düşürüldü (Zeus 0.10, Eros 0.065, Ares 0.055).
 - [x] Android geri tuşu: önce açık pencereyi kapatır, en son oyundan çıkar.
 - [x] Kaldığın yerden devam: Uygulama kapansa da tahta, skor, iksirler ve Ares'in öfkesi kaydediliyor.
 - [x] Büyük anlarda kısa titreşim (Zeus, Ares, kazanma, oyun sonu). Ses butonu titreşimi de kapatıyor.
-- [x] Otomatik testler repoda (`tests/test_game.gd`, 48 kontrol). Testler export'a dahil edilmiyor.
+- [x] Otomatik testler repoda (`tests/test_game.gd`, 66 kontrol). Testler export'a dahil edilmiyor.
 - [x] Gizlilik politikası yayında: https://roketrig.github.io/2048-olympos/privacy
 - [x] Geliştirici sitesi: https://roketrig.github.io
 
@@ -42,9 +47,11 @@ _Son güncelleme: 29 Ekim 2026_
   - Yazıların okunurluğu
   - Rehberin anlaşılır olup olmadığı
 - [ ] **Oran ayarı.** Testten gelen geri bildirime göre olasılıkları ayarlayın:
-  - `zeus.gd`: `strike_chance` 0.12, `chain_chance` 0.2
-  - `eros.gd`: `merge_chance` 0.08, `potion_chance` 0.06
-  - `ares.gd`: `scream_chance` 0.07
+  - `zeus.gd`: `strike_chance` 0.10, `chain_chance` 0.2
+  - `eros.gd`: `merge_chance` 0.065, `potion_chance` 0.06
+  - `ares.gd`: `scream_chance` 0.055
+  - `chaos.gd`: `max_hp` 3000, `halve_chance` 0.06, `split_chance` 0.045, `flood_chance` 0.04
+- [ ] **Boss savaşını deneyin.** Kaos'un canının (3000) savaşın ne kadar sürdüğüne uygun olup olmadığına bakın. Hızlı denemek için `main.gd` içindeki `BOSS_LEVEL` değerini geçici olarak 6 yapın; o zaman Kaos 128'de gelir.
 - [ ] Mağaza ekran görüntüleri ve öne çıkan görsel (1024×500). _(Claude üretebilir.)_
 
 ## 2. Release imza anahtarı (keystore)

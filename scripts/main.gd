@@ -6,7 +6,8 @@ const SWIPE_MIN_DISTANCE := 12.0
 const SCREEN := Vector2(180, 320) # game area; extra space on tall phones shows the night sky
 const BOARD_SIZE := 168.0
 const MAX_POTIONS := 3
-const WIN_LEVEL := 10 # 2048
+const BOSS_LEVEL := 10 # the first 2048 tile wakes Chaos
+const BOSS_BONUS := 2048
 const HEART_ICON: Array[String] = [".##.##.", "#######", "#######", ".#####.", "..###..", "...#..."]
 const SOUND_ON_ICON: Array[String] = ["..#....", ".##..#.", "###...#", "###...#", "###...#", ".##..#.", "..#...."]
 const SOUND_OFF_ICON: Array[String] = ["..#....", ".##....", "###.#.#", "###..#.", "###.#.#", ".##....", "..#...."]
@@ -15,6 +16,7 @@ var board: Board
 var zeus: Zeus
 var eros: Eros
 var ares: Ares
+var chaos: Chaos
 var gods: Array[God] = []
 var sfx: Sfx
 var ads: Ads
@@ -25,7 +27,10 @@ var sound_on := true
 var tutorial_seen := false
 var busy := false
 var over := false
-var won := false # the 2048 celebration shows once per game
+
+# the Chaos boss fight, once per game after the first 2048
+var boss_active := false
+var boss_done := false
 
 # love potion: lift a tile off the board and drop it back on any empty cell
 var potions := 0
@@ -37,10 +42,16 @@ var continued := false # the rewarded "continue" is offered once per game
 
 var _screen: Control
 var _shaker: Control
+var _effects: Control
+var _stars: Stars
 var _score_box: Box
 var _best_box: Box
 var _score_label: PixelLabel
 var _hiscore_label: PixelLabel
+var _boss_panel: Control
+var _chaos_title: PixelLabel
+var _hp_bar: HpBar
+var _hp_label: PixelLabel
 var _potion_button: PixelButton
 var _held_slot: HeldSlot
 var _new_button: PixelButton
@@ -54,10 +65,11 @@ var _continue_button: PixelButton
 var _game_over_panel: Box
 var _game_over_box: Control
 var _final_score: PixelLabel
-var _win: Control
-var _win_box: Control
-var _win_text: PixelLabel
-var _keep_going: PixelButton
+var _card: Control
+var _card_box: Control
+var _card_title: PixelLabel
+var _card_lines: Array[PixelLabel] = []
+var _card_button: PixelButton
 var _tutorial: Tutorial
 var _swipe_start := Vector2.ZERO
 var _swiping := false
@@ -88,7 +100,6 @@ func new_game() -> void:
 	score = 0
 	over = false
 	busy = false
-	won = false
 	potions = 0
 	held_level = -1
 	picking = false
@@ -101,10 +112,15 @@ func new_game() -> void:
 		_game_over_tween.kill()
 	_game_over.visible = false
 	_game_over.modulate.a = 0.0
-	_win.visible = false
+	_card.visible = false
 
 	for god in gods:
 		god.reset()
+	chaos.reset()
+	boss_active = false
+	boss_done = false
+	_show_boss(false)
+
 	board.clear()
 	board.spawn_tile()
 	board.spawn_tile()
@@ -127,26 +143,41 @@ func try_move(dir: Vector2i) -> void:
 	else:
 		sfx.play("move")
 
+	# in the boss fight every merge hits Chaos for the merged value
+	if boss_active and merged:
+		var damage := 0
+		for level in board.merge_levels:
+			damage += Tile.value_of(level)
+		chaos.take_damage(chaos.apply_curse(damage))
+		_update_hp()
+
 	busy = true
 	await get_tree().create_timer(Board.MOVE_TIME + 0.02).timeout
 
 	board.spawn_tile()
-	if merged and potions < MAX_POTIONS and eros.roll_potion():
-		potions += 1
-		eros.gift_potion(eros.to_effects(_potion_button.global_position + _potion_button.size / 2.0))
+	if boss_active:
+		if chaos.hp <= 0:
+			await _defeat_boss()
+		else:
+			chaos.tick()
+			await chaos.after_move()
+	else:
+		if merged and potions < MAX_POTIONS and eros.roll_potion():
+			potions += 1
+			eros.gift_potion(eros.to_effects(_potion_button.global_position + _potion_button.size / 2.0))
 
-	# every god counts the move, then at most one of them acts
-	for god in gods:
-		god.tick()
-	var order := gods.duplicate()
-	order.shuffle()
-	for god in order:
-		var acted: bool = await god.after_move()
-		if acted:
-			break
+		# every god counts the move, then at most one of them acts
+		for god in gods:
+			god.tick()
+		var order := gods.duplicate()
+		order.shuffle()
+		for god in order:
+			var acted: bool = await god.after_move()
+			if acted:
+				break
 
 	_refresh_ui()
-	_check_win()
+	await _check_boss()
 	await _check_stuck()
 	busy = false
 	_save_game()
@@ -155,34 +186,116 @@ func try_move(dir: Vector2i) -> void:
 func _check_stuck() -> void:
 	if board.can_move():
 		return
-	var rescued: bool = await zeus.try_rescue()
+	# the gods are gone while Chaos rules: no rescue then
+	var rescued := false
+	if not boss_active:
+		rescued = await zeus.try_rescue()
 	if not rescued or not board.can_move():
 		_show_game_over()
 
 
-func _check_win() -> void:
-	if won or not board.tiles().any(func(t: Tile) -> bool: return t.level >= WIN_LEVEL):
-		return
-	won = true
-	sfx.play("bonus")
-	sfx.buzz(80)
-	var center := Vector2(SCREEN.x / 2.0, 110)
-	for color in [Palette.GOLD, Eros.PINK, Color.WHITE, Palette.TILES[9]]:
-		Fx.sparks(_win_box, center + Vector2(randf_range(-40, 40), randf_range(-20, 20)), color, 12, 40.0)
-	_win.visible = true
+# --- Chaos boss fight ---------------------------------------------------------
 
+func _check_boss() -> void:
+	if boss_active or boss_done or not board.tiles().any(func(t: Tile) -> bool: return t.level >= BOSS_LEVEL):
+		return
+	await _start_boss()
+
+
+func _start_boss() -> void:
+	boss_active = true
+	chaos.reset()
+	ares.rage_left = 0
+	ares._update_status()
+	picking = false
+	offering = false
+
+	# the gods vanish in a burst of their own colors
+	sfx.play("thunder")
+	sfx.buzz(150)
+	chaos.strobe(Chaos.VOID, [0.8, 0.0, 0.6, 0.0, 0.4, 0.0])
+	Fx.shake(_shaker, 4, 0.6)
+	for god in gods:
+		Fx.sparks(_effects, _effects.get_global_transform().affine_inverse() * god.get_global_rect().get_center(), god.accent, 14, 26.0)
+	_show_boss(true)
+	chaos.banner(I18n.t("banner_chaos"), Chaos.PURPLE)
+	_refresh_ui()
+
+	await get_tree().create_timer(0.8).timeout
+	await _show_card("intro", Palette.GOLD)
+	_save_game()
+
+
+func _defeat_boss() -> void:
+	await chaos.explode()
+	boss_active = false
+	boss_done = true
+	_show_boss(false)
+	for god in gods:
+		Fx.sparks(_effects, _effects.get_global_transform().affine_inverse() * god.get_global_rect().get_center(), Palette.GOLD, 14, 26.0)
+	_on_score_gained(BOSS_BONUS)
+	_refresh_ui()
+	await _show_card("victory", Palette.GOLD)
+
+
+# Swaps the gods' row for Chaos's portrait and health bar, with his music.
+func _show_boss(on: bool) -> void:
+	for god in gods:
+		god.visible = not on
+	_boss_panel.visible = on
+	_stars.chaos = on
+	_stars.queue_redraw()
+	if on:
+		_update_hp()
+		sfx.play_music("boss")
+	else:
+		sfx.stop_music()
+
+
+func _update_hp() -> void:
+	_hp_bar.ratio = float(chaos.hp) / chaos.max_hp
+	_hp_bar.queue_redraw()
+	_hp_label.text = I18n.t("hp") % [chaos.hp, chaos.max_hp]
+
+
+# Full-screen story card ("intro" / "victory"); returns when dismissed.
+func _show_card(kind: String, color: Color) -> void:
+	_card_title.text = I18n.t(kind + "_title")
+	_card_title.color = color
+	for i in _card_lines.size():
+		_card_lines[i].text = I18n.t("%s_%d" % [kind, i + 1])
+	_card_button.text = I18n.t("fight" if kind == "intro" else "continue")
+	_card.visible = true
+	await _card_button.pressed
+	sfx.play("click")
+	_card.visible = false
+
+
+func _steal_potion() -> bool:
+	if potions <= 0:
+		return false
+	potions -= 1
+	_refresh_ui()
+	return true
+
+
+# --- taps and input -----------------------------------------------------------
 
 func _on_tap(at: Vector2) -> void:
-	if over or _win.visible:
+	if over or _card.visible:
 		return
 
-	# tapping a god explains what it does
+	# tapping a god (or Chaos) explains what it does
 	var pages := {zeus: Tutorial.PAGE_ZEUS, eros: Tutorial.PAGE_EROS, ares: Tutorial.PAGE_ARES}
 	for god in gods:
-		if god.get_global_rect().has_point(at):
+		if god.is_visible_in_tree() and god.get_global_rect().has_point(at):
 			sfx.play("click")
 			_tutorial.open(pages[god], true)
 			return
+	if boss_active and chaos.get_global_rect().has_point(at):
+		sfx.play("click")
+		_tutorial.open_chaos()
+		return
 
 	if busy:
 		return
@@ -219,6 +332,7 @@ func _drop(cell: Vector2i) -> void:
 	_refresh_ui()
 
 	busy = true
+	await _check_boss()
 	await _check_stuck()
 	busy = false
 	_save_game()
@@ -251,7 +365,7 @@ func _can_offer_potion_ad() -> bool:
 
 
 func _input(event: InputEvent) -> void:
-	if _tutorial.visible or ads.is_showing() or _win.visible:
+	if _tutorial.visible or ads.is_showing() or _card.visible:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
@@ -291,13 +405,12 @@ func _notification(what: int) -> void:
 func _on_back() -> void:
 	if ads.is_showing():
 		return
-	if _tutorial.credits_open() or _tutorial.visible:
-		if _tutorial.credits_open():
-			_tutorial._close_credits()
-		else:
-			_tutorial.close()
-	elif _win.visible:
-		_win.visible = false
+	if _tutorial.credits_open():
+		_tutorial._close_credits()
+	elif _tutorial.visible:
+		_tutorial.close()
+	elif _card.visible:
+		_card_button.pressed.emit()
 	elif picking or offering:
 		picking = false
 		offering = false
@@ -308,7 +421,10 @@ func _on_back() -> void:
 
 
 func _on_score_gained(points: int) -> void:
-	score += ares.apply_rage(points)
+	points = ares.apply_rage(points)
+	if boss_active:
+		points = chaos.apply_curse(points)
+	score += points
 	if score > hiscore:
 		hiscore = score
 		_save()
@@ -337,7 +453,7 @@ func _refresh_ui() -> void:
 	_held_slot.waiting = picking
 	_held_slot.queue_redraw()
 
-	_score_box.hot = ares.is_raging()
+	_score_box.hot = ares.is_raging() or (boss_active and chaos.is_cursed())
 	_score_box.queue_redraw()
 
 	if offering:
@@ -349,6 +465,12 @@ func _refresh_ui() -> void:
 	elif held_level >= 0:
 		_hint.text = I18n.t("hint_drop")
 		_hint.color = Eros.PINK
+	elif boss_active and chaos.is_cursed():
+		_hint.text = I18n.t("hint_curse") % str(chaos.curse_multiplier)
+		_hint.color = Chaos.PURPLE
+	elif boss_active:
+		_hint.text = I18n.t("hint_boss")
+		_hint.color = Chaos.PURPLE
 	elif ares.is_raging():
 		_hint.text = I18n.t("hint_rage") % str(ares.score_multiplier)
 		_hint.color = Ares.RED
@@ -366,8 +488,10 @@ func _apply_texts() -> void:
 	_final_score.text = I18n.t("score_n") % score
 	_try_again.text = I18n.t("try_again")
 	_continue_button.text = I18n.t("watch_continue")
-	_win_text.text = I18n.t("win_text")
-	_keep_going.text = I18n.t("keep_going")
+	chaos.god_name = I18n.t("chaos")
+	chaos.queue_redraw()
+	_chaos_title.text = I18n.t("chaos")
+	_update_hp()
 	_refresh_ui()
 
 
@@ -378,6 +502,7 @@ func _on_language_changed() -> void:
 
 func _show_game_over() -> void:
 	over = true
+	sfx.stop_music()
 	sfx.play("over")
 	sfx.buzz(60)
 	_final_score.text = I18n.t("score_n") % score
@@ -401,7 +526,8 @@ func _on_try_again() -> void:
 	new_game()
 
 
-# Rewarded continue: Zeus frees the board once per game.
+# Rewarded continue: Zeus frees the board once per game (even mid boss fight,
+# when he slips back for a moment).
 func _on_continue() -> void:
 	if busy:
 		return
@@ -414,6 +540,8 @@ func _on_continue() -> void:
 		_game_over_tween.kill()
 		_game_over.visible = false
 		_game_over.modulate.a = 0.0
+		if boss_active:
+			sfx.play_music("boss")
 		await zeus.revive()
 		_refresh_ui()
 		if not board.can_move():
@@ -427,6 +555,10 @@ func _toggle_sound() -> void:
 	sfx.enabled = sound_on
 	_sound_button.icon = SOUND_ON_ICON if sound_on else SOUND_OFF_ICON
 	_sound_button.queue_redraw()
+	if sound_on and boss_active:
+		sfx.play_music("boss")
+	elif not sound_on:
+		sfx.stop_music()
 	sfx.play("click")
 	_save()
 
@@ -467,13 +599,16 @@ func _save_game() -> void:
 	var config := ConfigFile.new()
 	config.set_value("game", "levels", levels)
 	config.set_value("game", "score", score)
-	config.set_value("game", "won", won)
 	config.set_value("game", "potions", potions)
 	config.set_value("game", "held_level", held_level)
 	config.set_value("game", "potion_ads_used", potion_ads_used)
 	config.set_value("game", "continued", continued)
 	config.set_value("gods", "rescues_used", zeus._rescues_used)
 	config.set_value("gods", "rage_left", ares.rage_left)
+	config.set_value("boss", "active", boss_active)
+	config.set_value("boss", "done", boss_done)
+	config.set_value("boss", "hp", chaos.hp)
+	config.set_value("boss", "curse_left", chaos.curse_left)
 	config.save(GAME_PATH)
 
 
@@ -491,7 +626,6 @@ func _load_game() -> bool:
 		if levels[i] >= 0:
 			board.place_tile(Vector2i(i % Board.SIZE, i / Board.SIZE), mini(levels[i], Board.MAX_LEVEL))
 	score = config.get_value("game", "score", 0)
-	won = config.get_value("game", "won", false)
 	potions = config.get_value("game", "potions", 0)
 	held_level = config.get_value("game", "held_level", -1)
 	potion_ads_used = config.get_value("game", "potion_ads_used", 0)
@@ -499,6 +633,11 @@ func _load_game() -> bool:
 	zeus._rescues_used = config.get_value("gods", "rescues_used", 0)
 	ares.rage_left = config.get_value("gods", "rage_left", 0)
 	ares._update_status()
+	boss_active = config.get_value("boss", "active", false)
+	boss_done = config.get_value("boss", "done", false)
+	chaos.hp = config.get_value("boss", "hp", chaos.max_hp)
+	chaos.curse_left = config.get_value("boss", "curse_left", 0)
+	_show_boss(boss_active)
 	_update_score_labels()
 	_refresh_ui()
 	return true
@@ -524,13 +663,14 @@ func _layout() -> void:
 	if window_scale * fit >= 3.0:
 		fit = floorf(window_scale * fit) / window_scale
 	var origin := ((area.position + (area.size - SCREEN * fit) / 2.0) * window_scale).floor() / window_scale
-	for box in [_screen, _game_over_box, _win_box, _tutorial.box]:
+	for box in [_screen, _game_over_box, _card_box, _tutorial.box]:
 		box.scale = Vector2(fit, fit)
 		box.position = origin
 
 
 func _build_ui() -> void:
-	add_child(Stars.new())
+	_stars = Stars.new()
+	add_child(_stars)
 
 	_screen = Control.new()
 	_screen.size = SCREEN
@@ -562,6 +702,22 @@ func _build_ui() -> void:
 	gods = [zeus, eros, ares]
 	for i in gods.size():
 		_place(_shaker, gods[i], Vector2(6 + i * 61, 42))
+
+	# Chaos takes the gods' row during the boss fight
+	_boss_panel = Control.new()
+	_boss_panel.size = SCREEN
+	_boss_panel.visible = false
+	_shaker.add_child(_boss_panel)
+	chaos = Chaos.new()
+	chaos.steal_potion = _steal_potion
+	_place(_boss_panel, chaos, Vector2(6, 42))
+	_chaos_title = PixelLabel.new("", 2, Chaos.PURPLE, Palette.INK)
+	_place(_boss_panel, _chaos_title, Vector2(58, 46))
+	_hp_bar = HpBar.new()
+	_hp_bar.size = Vector2(116, 10)
+	_place(_boss_panel, _hp_bar, Vector2(58, 66))
+	_hp_label = PixelLabel.new("", 1, Palette.LIGHT, Palette.INK)
+	_place(_boss_panel, _hp_label, Vector2(58, 80))
 
 	# board
 	board = Board.new()
@@ -598,9 +754,9 @@ func _build_ui() -> void:
 	_place(_shaker, _hint, Vector2(0, 306))
 
 	# effects layer above the board (lightning, hearts, sparks, texts)
-	var effects := Control.new()
-	effects.size = SCREEN
-	_shaker.add_child(effects)
+	_effects = Control.new()
+	_effects.size = SCREEN
+	_shaker.add_child(_effects)
 
 	# full-screen strobe for big moments
 	var flash := ColorRect.new()
@@ -608,9 +764,9 @@ func _build_ui() -> void:
 	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(flash)
 
-	for god in gods:
+	for god in gods + [chaos]:
 		god.board = board
-		god.effects = effects
+		god.effects = _effects
 		god.shaker = _shaker
 		god.flash = flash
 		god.sfx = sfx
@@ -640,28 +796,27 @@ func _build_ui() -> void:
 	_continue_button.pressed.connect(_on_continue)
 	_place(_game_over_box, _continue_button, Vector2(24, 194))
 
-	# 2048 celebration
-	_win = Dim.new()
-	_win.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_win.visible = false
-	add_child(_win)
+	# story card for the boss fight (intro / victory)
+	_card = Dim.new()
+	_card.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_card.visible = false
+	add_child(_card)
 
-	_win_box = Control.new()
-	_win_box.size = SCREEN
-	_win.add_child(_win_box)
+	_card_box = Control.new()
+	_card_box.size = SCREEN
+	_card.add_child(_card_box)
 
-	var win_panel := Box.new()
-	win_panel.size = Vector2(140, 84)
-	_place(_win_box, win_panel, Vector2(20, 92))
-	_place(_win_box, _centered(I18n.t("win_title"), 3, Palette.GOLD, SCREEN.x, Palette.GOLD_DARK), Vector2(0, 102))
-	_win_text = _centered("", 1, Palette.LIGHT, SCREEN.x)
-	_place(_win_box, _win_text, Vector2(0, 132))
-	_keep_going = PixelButton.new("", 74, 18)
-	_keep_going.pressed.connect(func() -> void:
-		sfx.play("click")
-		_win.visible = false
-	)
-	_place(_win_box, _keep_going, Vector2(53, 150))
+	var card_panel := Box.new()
+	card_panel.size = Vector2(148, 120)
+	_place(_card_box, card_panel, Vector2(16, 84))
+	_card_title = _centered("", 3, Palette.GOLD, SCREEN.x, Palette.INK)
+	_place(_card_box, _card_title, Vector2(0, 94))
+	for i in 4:
+		var line := _centered("", 1, Palette.LIGHT, SCREEN.x)
+		_place(_card_box, line, Vector2(0, 124 + i * 10))
+		_card_lines.append(line)
+	_card_button = PixelButton.new("", 74, 18)
+	_place(_card_box, _card_button, Vector2(53, 174))
 
 	_ignore_mouse(self)
 
@@ -710,7 +865,7 @@ func _ignore_mouse(node: Node) -> void:
 		_ignore_mouse(child)
 
 
-# Panel background; turns red while Ares rages (for the score box).
+# Panel background; turns red while Ares rages or Chaos curses (score box).
 class Box extends Control:
 	var caption: PixelLabel
 	var value: PixelLabel
@@ -721,6 +876,21 @@ class Box extends Control:
 		draw_rect(Rect2(Vector2.ZERO, size), Palette.INK)
 		draw_rect(Rect2(1, 1, size.x - 2, size.y - 2), color)
 		draw_rect(Rect2(1, 1, size.x - 2, 1), color.lightened(0.15))
+
+
+# Chaos's health: a segmented retro bar.
+class HpBar extends Control:
+	var ratio := 1.0
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), Palette.INK)
+		draw_rect(Rect2(1, 1, size.x - 2, size.y - 2), Palette.CELL)
+		var fill := floorf((size.x - 2) * clampf(ratio, 0.0, 1.0))
+		var color := Color("ff3355") if ratio > 0.25 else Color("ff8a3d")
+		draw_rect(Rect2(1, 1, fill, size.y - 2), color)
+		draw_rect(Rect2(1, 1, fill, 1), color.lightened(0.35))
+		for x in range(5, int(size.x) - 1, 5):
+			draw_rect(Rect2(x, 2, 1, size.y - 4), Color(Palette.INK, 0.35))
 
 
 # Shows the tile lifted with a love potion.
@@ -740,7 +910,7 @@ class HeldSlot extends Control:
 			PixelFont.draw_centered(self, "-", Rect2(Vector2.ZERO, size), 1, Palette.DIM)
 
 
-# Darkened scanline backdrop for the game over and win screens.
+# Darkened scanline backdrop for the game over screen and story cards.
 class Dim extends Control:
 	func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(Palette.INK, 0.6))
@@ -748,8 +918,9 @@ class Dim extends Control:
 			draw_rect(Rect2(0, y, size.x, 1), Color(Palette.INK, 0.35))
 
 
-# Twinkling night sky behind the game.
+# Twinkling night sky behind the game; turns blood red while Chaos rules.
 class Stars extends Control:
+	var chaos := false
 	var _stars: Array[Vector3] = [] # x, y, brightness
 	var _timer := 0.0
 
@@ -777,5 +948,9 @@ class Stars extends Control:
 		queue_redraw()
 
 	func _draw() -> void:
+		if chaos:
+			draw_rect(Rect2(Vector2.ZERO, size), Color(Chaos.VOID, 0.35))
+		var bright := Color("ff3355") if chaos else Palette.LIGHT
+		var dim := Color("6a2fa0") if chaos else Palette.DIM.darkened(0.3)
 		for star in _stars:
-			draw_rect(Rect2(star.x, star.y, 1, 1), Palette.LIGHT if star.z > 0.8 else Palette.DIM.darkened(0.3))
+			draw_rect(Rect2(star.x, star.y, 1, 1), bright if star.z > 0.8 else dim)
