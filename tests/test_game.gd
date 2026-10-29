@@ -243,6 +243,23 @@ func _run() -> void:
 					too_wide.append(line)
 			if PixelFont.measure(page["title"], 2).x > 160:
 				too_wide.append(page["title"])
+		for boss_key in I18n.BOSS_PAGES:
+			for page in I18n.BOSS_PAGES[boss_key][language]:
+				texts.append(page["title"])
+				texts.append_array(page["lines"])
+				for line in page["lines"]:
+					if PixelFont.measure(line, 1).x > 160:
+						too_wide.append(line)
+				if PixelFont.measure(page["title"], 2).x > 160:
+					too_wide.append(page["title"])
+		for key in I18n.STRINGS[language]:
+			var card_text: String = I18n.STRINGS[language][key]
+			if "%d" in card_text:
+				card_text = card_text.replace("%d", "999")
+			if key.ends_with("_title") and PixelFont.measure(card_text, 3).x > 144:
+				too_wide.append(card_text)
+			if (key.contains("intro_") or key.contains("victory_") or key.begins_with("mood_") or key.begins_with("trophy")) and not key.ends_with("_title") and PixelFont.measure(card_text, 1).x > 144:
+				too_wide.append(card_text)
 		for key in I18n.STRINGS[language]:
 			var text: String = I18n.STRINGS[language][key]
 			if key.begins_with("hint") and PixelFont.measure(text % "1.5" if "%" in text else text, 1).x > 180:
@@ -317,9 +334,23 @@ func _run() -> void:
 	_fill([[9, 9, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]])
 	main.try_move(Vector2i.LEFT)
 	await create_timer(1.4).timeout
-	_check(main.boss_active and main._card.visible, "first 2048 wakes Chaos with the intro card")
-	_check(main.gods.all(func(g: God) -> bool: return not g.visible) and chaos.is_visible_in_tree(), "gods vanish, Chaos appears")
+	_check(main.boss_active and main.herald_done, "first 2048 wakes Chaos (the herald is skipped)")
+	_check(main._tutorial.visible and main._tutorial._sequence == I18n.boss_pages("chaos") and not main._card.visible, "first meeting opens the Chaos guide")
+	_check(not main._tutorial._credits_button.visible, "the boss guide has no credits row")
+	if shot_path != "":
+		await RenderingServer.frame_post_draw
+		_save(shot_path.replace(".png", "_chaos_guide.png"))
+	for i in I18n.boss_pages("chaos").size():
+		main._tutorial._turn(1)
+	await create_timer(0.1).timeout
+	_check(not main._tutorial.visible and main._card.visible, "after the guide comes the intro card")
+	_check(Chaos.MOODS.has(chaos.mood) and main._card_lines[3].text == I18n.t("mood_" + chaos.mood), "the card names his mood (%s)" % chaos.mood)
+	_check(main.gods.all(func(g: God) -> bool: return not g.visible) and chaos.is_visible_in_tree() and not main.herald.visible, "gods vanish, Chaos appears")
 	_check(main.sfx.music_playing(), "boss music plays")
+	var saved_mood := chaos.mood
+	chaos.mood = "flood"
+	_check(is_equal_approx(chaos.chance("flood", 0.04), 0.072) and is_equal_approx(chaos.chance("halve", 0.06), 0.036), "mood boosts one power and dampens the others")
+	chaos.mood = saved_mood
 	if shot_path != "":
 		await RenderingServer.frame_post_draw
 		_save(shot_path.replace(".png", "_boss_intro.png"))
@@ -365,15 +396,17 @@ func _run() -> void:
 	chaos.curse_left = 0
 
 	main._on_tap(chaos.get_global_rect().get_center())
-	_check(main._tutorial.visible and not main._tutorial._custom.is_empty(), "tapping Chaos opens his card")
+	_check(main._tutorial.visible and main._tutorial._sequence == I18n.boss_pages("chaos"), "tapping Chaos opens his guide")
 	main._tutorial.close()
 
 	main._save_game()
 	var saved_hp := chaos.hp
+	var saved_moves: int = main.boss_moves
 	main.boss_active = false
 	chaos.hp = 1
 	main._load_game()
 	_check(main.boss_active and chaos.hp == saved_hp and not main.zeus.visible, "boss fight resumes after relaunch")
+	_check(main.boss == chaos and chaos.mood == saved_mood and main.boss_moves == saved_moves and saved_moves > 0, "mood and move count resume too")
 
 	chaos._moves_since_action = -1000
 	chaos.hp = 5
@@ -383,7 +416,9 @@ func _run() -> void:
 	await create_timer(1.4).timeout
 	_check(main._card.visible and main.boss_done and not main.boss_active, "Chaos defeated: victory card")
 	_check(main.gods.all(func(g: God) -> bool: return g.visible) and not main.sfx.music_playing(), "gods return, music stops")
-	_check(main.score >= score_before + Chaos.new().max_hp * 0 + 2048, "victory bonus +2048")
+	_check(main.score >= score_before + 2048, "victory bonus +2048")
+	_check(main.chaos_best == main.boss_moves and main._card_lines[3].text == I18n.t("victory_record") % main.boss_moves, "first win is a record (%s)" % main._card_lines[3].text)
+	_check(main.trophies.has("chaos"), "trophy for beating Chaos")
 	if shot_path != "":
 		await RenderingServer.frame_post_draw
 		_save(shot_path.replace(".png", "_victory.png"))
@@ -394,6 +429,73 @@ func _run() -> void:
 	_fill([[9, 9, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]])
 	await main.try_move(Vector2i.LEFT)
 	_check(not main.boss_active and not main._card.visible, "Chaos comes only once per game")
+	main.new_game()
+
+	# --- the herald at 512 ---
+	var herald: Herald = main.herald
+	for god in main.gods:
+		god._moves_since_action = -1000 # new_game reset them
+	_fill([[7, 7, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]])
+	main.try_move(Vector2i.LEFT)
+	await create_timer(1.4).timeout
+	_check(main.boss_active and main.boss == herald and herald.is_visible_in_tree() and not chaos.visible, "first 512 brings the herald")
+	_check(main._tutorial.visible and main._tutorial._sequence == I18n.boss_pages("herald"), "first meeting opens the herald guide")
+	main._on_back()
+	await create_timer(0.1).timeout
+	_check(main._card.visible and main._card_title.text == "512!", "back closes the guide, then the herald card")
+	if shot_path != "":
+		await RenderingServer.frame_post_draw
+		_save(shot_path.replace(".png", "_herald_intro.png"))
+	main._card_button.pressed.emit()
+	await create_timer(0.3).timeout
+	_check(herald.hp == herald.max_hp and herald.max_hp < chaos.max_hp and herald.mood == "", "the herald is weaker and has no mood")
+	herald._moves_since_action = -1000
+	_fill([[1, 1, -1, -1], [-1, -1, -1, -1], [8, -1, -1, -1], [-1, -1, -1, -1]])
+	await main.try_move(Vector2i.LEFT)
+	_check(herald.hp == herald.max_hp - 8, "merges hurt the herald")
+	if shot_path != "":
+		await create_timer(0.3).timeout
+		await RenderingServer.frame_post_draw
+		_save(shot_path.replace(".png", "_herald.png"))
+	herald.hp = 3
+	score_before = main.score
+	_fill([[1, 1, -1, -1], [-1, -1, -1, -1], [8, -1, -1, -1], [-1, -1, -1, -1]])
+	main.try_move(Vector2i.LEFT)
+	await create_timer(1.4).timeout
+	_check(main._card.visible and main.herald_done and not main.boss_done and not main.boss_active, "herald defeated, Chaos still to come")
+	_check(main.score >= score_before + 512 and main.trophies.has("herald"), "herald bonus +512 and trophy")
+	main._card_button.pressed.emit()
+	await create_timer(0.3).timeout
+
+	_fill([[9, 9, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]])
+	main.try_move(Vector2i.LEFT)
+	await create_timer(1.4).timeout
+	_check(main.boss == chaos and main._card.visible and not main._tutorial.visible, "the guide shows only the first time")
+	main._card_button.pressed.emit()
+	await create_timer(0.3).timeout
+	main.new_game()
+
+	# --- trophies ---
+	_check(main.trophies.has("chain") and main.trophies.has("love") and main.trophies.has("roar"), "god trophies unlocked along the way (%s)" % [main.trophies])
+	var page: Dictionary = main._trophy_page()
+	_check(page["lines"].size() == 6 and page["title"] == I18n.t("trophies") % [main.trophies.size(), 6], "trophy page lists all six")
+	_fill([[11, 11, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]])
+	main.boss_done = true
+	main.herald_done = true
+	await main.try_move(Vector2i.LEFT)
+	_check(main.trophies.has("tile") and main._hint.text == I18n.t("trophy") % I18n.t("trophy_tile"), "reaching 8192 unlocks a trophy with a message")
+	main._tutorial.open_custom(main._trophy_page())
+	if shot_path != "":
+		await create_timer(0.2).timeout
+		await RenderingServer.frame_post_draw
+		_save(shot_path.replace(".png", "_trophies.png"))
+	main._tutorial.close()
+	main._save()
+	main.trophies.clear()
+	main.chaos_best = 0
+	main._load_save()
+	I18n.lang = "en"
+	_check(main.trophies.size() == 6 and main.chaos_best > 0, "trophies and record are saved")
 	for god in main.gods:
 		god._moves_since_action = 0
 	main.new_game()

@@ -101,6 +101,7 @@ func after_move() -> bool:
 		return false
 
 	acted()
+	feat.emit("roar")
 	_screaming = true
 	queue_redraw()
 	sfx.play("roar")

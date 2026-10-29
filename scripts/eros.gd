@@ -68,6 +68,7 @@ func after_move() -> bool:
 		return false
 
 	acted()
+	feat.emit("love")
 	sfx.play("love")
 	banner(I18n.t("banner_love"), PINK)
 

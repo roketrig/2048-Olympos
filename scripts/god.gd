@@ -4,6 +4,8 @@ extends Control
 # Base for the gods shown above the board: draws the pixel portrait and
 # provides the shared effects. Subclasses decide when and how to act.
 
+signal feat(id: String) # something worth a trophy happened
+
 const FRAME := 46.0
 const SPRITE_PX := 2
 

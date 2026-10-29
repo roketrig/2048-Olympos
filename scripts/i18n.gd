@@ -48,15 +48,39 @@ const STRINGS := {
 		"intro_title": "2048!",
 		"intro_1": "BUT CHAOS AWAKENS...",
 		"intro_2": "THE GODS ARE GONE.",
-		"intro_3": "MERGE TILES TO",
-		"intro_4": "DAMAGE HIM!",
+		"intro_3": "MERGE TO DAMAGE HIM!",
+		"mood_halve": "MOOD: HALVING TILES",
+		"mood_split": "MOOD: SPLITTING TILES",
+		"mood_flood": "MOOD: POURING 2S",
 		"fight": "FIGHT!",
 		"victory_title": "VICTORY!",
 		"victory_1": "CHAOS IS DEFEATED.",
 		"victory_2": "THE GODS RETURN!",
 		"victory_3": "+2048 BONUS",
-		"victory_4": "",
+		"victory_moves": "%d MOVES, BEST %d",
+		"victory_record": "NEW RECORD: %d MOVES",
 		"continue": "CONTINUE",
+		"herald": "HERALD",
+		"banner_herald": "HERALD COMES!",
+		"hint_herald": "MERGE TO HURT THE HERALD",
+		"herald_intro_title": "512!",
+		"herald_intro_1": "CHAOS SENDS HIS HERALD.",
+		"herald_intro_2": "THE GODS FLEE!",
+		"herald_intro_3": "BEAT HIM AND GET READY",
+		"herald_intro_4": "FOR WHAT COMES NEXT...",
+		"herald_victory_title": "VICTORY!",
+		"herald_victory_1": "THE HERALD FLEES.",
+		"herald_victory_2": "THE GODS RETURN!",
+		"herald_victory_3": "+512 BONUS",
+		"herald_victory_4": "CHAOS IS WATCHING...",
+		"trophies": "TROPHIES %d/%d",
+		"trophy": "TROPHY: %s",
+		"trophy_chain": "ZEUS CHAIN",
+		"trophy_love": "EROS LOVE MERGE",
+		"trophy_roar": "ARES WAR CRY",
+		"trophy_herald": "HERALD DEFEATED",
+		"trophy_chaos": "CHAOS DEFEATED",
+		"trophy_tile": "THE 8192 TILE",
 		"credits_by": "A GAME BY",
 		"credits_engine": "MADE WITH GODOT ENGINE",
 		"credits_licenses": "LICENSES:",
@@ -99,15 +123,39 @@ const STRINGS := {
 		"intro_title": "2048!",
 		"intro_1": "AMA KAOS UYANDI...",
 		"intro_2": "TANRILAR YOK OLDU.",
-		"intro_3": "TAŞLARI BİRLEŞTİR,",
-		"intro_4": "KAOS'A HASAR VER!",
+		"intro_3": "BİRLEŞTİR, HASAR VER!",
+		"mood_halve": "BU KEZ ÇOK TAŞ YARAR",
+		"mood_split": "BU KEZ ÇOK TAŞ BÖLER",
+		"mood_flood": "BU KEZ ÇOK 2 DÖKER",
 		"fight": "SAVAŞ!",
 		"victory_title": "ZAFER!",
 		"victory_1": "KAOS YENİLDİ.",
 		"victory_2": "TANRILAR GERİ DÖNDÜ!",
 		"victory_3": "+2048 BONUS",
-		"victory_4": "",
+		"victory_moves": "%d HAMLE, REKOR %d",
+		"victory_record": "YENİ REKOR: %d HAMLE",
 		"continue": "DEVAM ET",
+		"herald": "ELÇİ",
+		"banner_herald": "ELÇİ GELDİ!",
+		"hint_herald": "BİRLEŞTİR, ELÇİ'YE VUR!",
+		"herald_intro_title": "512!",
+		"herald_intro_1": "KAOS ELÇİSİNİ YOLLADI.",
+		"herald_intro_2": "TANRILAR KAÇTI!",
+		"herald_intro_3": "ONU YEN VE HAZIRLAN,",
+		"herald_intro_4": "ASIL TEHLİKE GELİYOR...",
+		"herald_victory_title": "ZAFER!",
+		"herald_victory_1": "ELÇİ KAÇTI.",
+		"herald_victory_2": "TANRILAR GERİ DÖNDÜ!",
+		"herald_victory_3": "+512 BONUS",
+		"herald_victory_4": "KAOS SENİ İZLİYOR...",
+		"trophies": "BAŞARI %d/%d",
+		"trophy": "BAŞARI: %s",
+		"trophy_chain": "ZEUS ZİNCİRİ",
+		"trophy_love": "AŞK BİRLEŞMESİ",
+		"trophy_roar": "ARES'İN ÇIĞLIĞI",
+		"trophy_herald": "ELÇİ YENİLDİ",
+		"trophy_chaos": "KAOS YENİLDİ",
+		"trophy_tile": "8192 TAŞI",
 		"credits_by": "YAPIMCI",
 		"credits_engine": "GODOT ENGINE İLE YAPILDI",
 		"credits_licenses": "LİSANSLAR:",
@@ -202,25 +250,102 @@ const PAGES := {
 }
 
 
-# Shown when the player taps Chaos; kept out of the regular pages so the boss
-# stays a surprise.
-const CHAOS_PAGE := {
-	"en": {"title": "CHAOS", "art": "chaos", "lines": [
-		"LORD OF DISORDER.",
-		"MERGE TILES TO HURT HIM.",
-		"HE HALVES TILES, SPLITS",
-		"THEM, FLOODS THE BOARD",
-		"WITH 2S, WEAKENS HITS",
-		"AND STEALS POTIONS.",
-	]},
-	"tr": {"title": "KAOS", "art": "chaos", "lines": [
-		"DÜZENSİZLİĞİN EFENDİSİ.",
-		"BİRLEŞTİR, HASAR VER.",
-		"TAŞLARI YARILAR, BÖLER,",
-		"TAHTAYI 2'LERLE DOLDURUR,",
-		"VURUŞLARINI ZAYIFLATIR,",
-		"İKSİR ÇALAR.",
-	]},
+# Boss guides: shown the first time the player meets each boss, and again when
+# the boss's portrait is tapped. Kept out of the regular pages so the bosses
+# stay a surprise.
+const BOSS_PAGES := {
+	"herald": {
+		"en": [
+			{"title": "THE HERALD", "art": "herald", "lines": [
+				"A SHADOW SENT BY CHAOS.",
+				"THE GODS HAVE FLED",
+				"UNTIL HE IS BEATEN.",
+				"",
+				"EVERY MERGE HITS HIM",
+				"FOR THE TILE'S VALUE.",
+			]},
+			{"title": "HIS TRICKS", "art": "herald", "lines": [
+				"NOW AND THEN HE",
+				"HALVES A TILE.",
+				"HE POURS 2S ON THE",
+				"BOARD AND WEAKENS YOUR",
+				"HITS FOR 3 MOVES.",
+				"BEAT HIM: +512 BONUS!",
+			]},
+		],
+		"tr": [
+			{"title": "ELÇİ", "art": "herald", "lines": [
+				"KAOS'UN YOLLADIĞI GÖLGE.",
+				"O YENİLENE KADAR",
+				"TANRILAR KAÇTI.",
+				"",
+				"HER BİRLEŞTİRME ONA",
+				"TAŞIN DEĞERİ KADAR VURUR.",
+			]},
+			{"title": "HİLELERİ", "art": "herald", "lines": [
+				"ARA SIRA BİR TAŞI",
+				"YARIYA İNDİRİR.",
+				"TAHTAYA 2'LER DÖKER VE",
+				"3 HAMLE BOYUNCA",
+				"VURUŞLARIN ZAYIFLAR.",
+				"YEN: +512 BONUS!",
+			]},
+		],
+	},
+	"chaos": {
+		"en": [
+			{"title": "CHAOS", "art": "chaos", "lines": [
+				"LORD OF DISORDER.",
+				"THE GODS ARE GONE",
+				"UNTIL HE FALLS.",
+				"",
+				"EVERY MERGE HITS HIM.",
+				"WATCH HIS HP BAR!",
+			]},
+			{"title": "HIS POWERS", "art": "chaos", "lines": [
+				"/2: HALVES A TILE,",
+				"RARELY /4.",
+				"SHATTER: SPLITS TILES",
+				"AND STEALS A POTION.",
+				"CURSE OF 2S: POURS 2S,",
+				"YOUR HITS DO x0.5.",
+			]},
+			{"title": "HIS MOOD", "art": "chaos", "lines": [
+				"EACH FIGHT HE USES ONE",
+				"POWER MORE THAN THE",
+				"OTHERS. SEE THE CARD!",
+				"",
+				"BEAT HIM: +2048 BONUS",
+				"AND THE GODS RETURN.",
+			]},
+		],
+		"tr": [
+			{"title": "KAOS", "art": "chaos", "lines": [
+				"DÜZENSİZLİĞİN EFENDİSİ.",
+				"O DÜŞENE KADAR",
+				"TANRILAR YOK.",
+				"",
+				"HER BİRLEŞTİRME VURUR.",
+				"CAN BARINI İZLE!",
+			]},
+			{"title": "GÜÇLERİ", "art": "chaos", "lines": [
+				"/2: BİR TAŞI YARILAR,",
+				"NADİREN /4.",
+				"PARÇALANMA: TAŞ BÖLER,",
+				"İKSİR ÇALAR.",
+				"2'LERİN LANETİ: 2 DÖKER,",
+				"VURUŞLARIN x0.5 OLUR.",
+			]},
+			{"title": "HUYU", "art": "chaos", "lines": [
+				"HER SAVAŞTA BİR GÜCÜNÜ",
+				"DAHA ÇOK KULLANIR.",
+				"KARTA BAK!",
+				"",
+				"YEN: +2048 BONUS,",
+				"TANRILAR GERİ DÖNER.",
+			]},
+		],
+	},
 }
 
 
@@ -232,8 +357,8 @@ static func pages() -> Array:
 	return PAGES[lang]
 
 
-static func chaos_page() -> Dictionary:
-	return CHAOS_PAGE[lang]
+static func boss_pages(boss: String) -> Array:
+	return BOSS_PAGES[boss][lang]
 
 
 # Turkish phones start in Turkish, everything else in English.

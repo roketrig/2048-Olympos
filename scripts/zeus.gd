@@ -80,6 +80,7 @@ func after_move() -> bool:
 		var chain := _pick_chain()
 		if chain.size() >= 2:
 			acted()
+			feat.emit("chain")
 			await _chain_strike(chain)
 			return true
 

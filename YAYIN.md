@@ -28,13 +28,18 @@ _Son güncelleme: 29 Ekim 2026_
   - Her birleştirme, taşın değeri kadar hasar veriyor.
   - Kaos tanrıların tersini yapıyor, ama daha düşük ihtimalle: taşı yarılıyor (Zeus'un tersi), taşları ikiye bölüp iksir çalıyor (Eros'un tersi), tahtaya 2'ler döküp vuruşları yarıya indiriyor (Ares'in tersi).
   - Kaos yenilince tanrılar geri dönüyor ve +2048 bonus geliyor.
+- [x] **Kaos'un Elçisi** (ilk 512 taşında, oyun başına bir kez): 500 canlı mini boss. Taş yarılar ve 2 döker; bölme ve iksir çalma yok. Yenilince +512 bonus. 2048'e Elçi'yi atlayarak ulaşılırsa Elçi gelmez.
+- [x] **Kaos'un huyu:** Her savaşta üç gücünden biri 1,8 kat sık, diğerleri 0,6 kat. Huy, giriş kartında yazıyor.
+- [x] **Kaos rekoru:** Zafer kartı kaç hamlede yendiğinizi ve rekorunuzu gösteriyor.
+- [x] **Başarılar:** Başlıktaki kupa butonu 6 başarıyı gösteriyor (Zeus zinciri, aşk birleşmesi, Ares çığlığı, Elçi, Kaos, 8192). Açılınca altta altın renkli mesaj çıkıyor; telefona kaydediliyor.
+- [x] **Boss rehberleri:** Elçi'ye ve Kaos'a ilk kez ulaşıldığında kendi rehberleri açılıyor (bir kez). Baştaki rehberde yer almıyorlar; boss'un portresine dokunarak tekrar açılabiliyorlar.
 - [x] Tanrıların olasılıkları test geri bildirimine göre yaklaşık %15-20 düşürüldü (Zeus 0.10, Eros 0.065, Ares 0.055).
 - [x] **Son taş 8192.** 8192 artık birleşmez, Zeus çarpmaz, Kaos dokunmaz; altın çerçeveyle işaretli. Değiştirmek için `board.gd` içindeki `MAX_LEVEL` (12 = 8192, 13 = 16384).
 - [x] Zeus büyük taşları çok daha nadir vuruyor: her seviye ihtimali 0.55 ile çarpılıyor (64 ≈ 20 kat, 1024 ≈ 200 kat daha az).
 - [x] Android geri tuşu: önce açık pencereyi kapatır, en son oyundan çıkar.
 - [x] Kaldığın yerden devam: Uygulama kapansa da tahta, skor, iksirler ve Ares'in öfkesi kaydediliyor.
 - [x] Büyük anlarda kısa titreşim (Zeus, Ares, kazanma, oyun sonu). Ses butonu titreşimi de kapatıyor.
-- [x] Otomatik testler repoda (`tests/test_game.gd`, 71 kontrol). Testler export'a dahil edilmiyor.
+- [x] Otomatik testler repoda (`tests/test_game.gd`, 91 kontrol). Testler export'a dahil edilmiyor.
 - [x] Gizlilik politikası yayında: https://roketrig.github.io/2048-olympos/privacy
 - [x] Geliştirici sitesi: https://roketrig.github.io
 
@@ -52,8 +57,9 @@ _Son güncelleme: 29 Ekim 2026_
   - `zeus.gd`: `strike_chance` 0.10, `chain_chance` 0.2, `big_tile_falloff` 0.55 (küçüldükçe büyük taşlar daha az vurulur)
   - `eros.gd`: `merge_chance` 0.065, `potion_chance` 0.06
   - `ares.gd`: `scream_chance` 0.055
-  - `chaos.gd`: `max_hp` 3000, `halve_chance` 0.06, `split_chance` 0.045, `flood_chance` 0.04
-- [ ] **Boss savaşını deneyin.** Kaos'un canının (3000) savaşın ne kadar sürdüğüne uygun olup olmadığına bakın. Hızlı denemek için `main.gd` içindeki `BOSS_LEVEL` değerini geçici olarak 6 yapın; o zaman Kaos 128'de gelir.
+  - `chaos.gd`: `max_hp` 3000, `halve_chance` 0.06, `split_chance` 0.045, `flood_chance` 0.04, huy için `MOOD_BOOST` 1.8 / `MOOD_DAMPEN` 0.6
+  - `herald.gd`: `max_hp` 500, `halve_chance` 0.05, `flood_chance` 0.04
+- [ ] **Boss savaşlarını deneyin.** Elçi'nin canının (500) ve Kaos'un canının (3000) savaşın ne kadar sürdüğüne uygun olup olmadığına bakın. Hızlı denemek için `main.gd` içindeki `BOSS_LEVEL` değerini geçici olarak 6 yapın; o zaman Kaos 128'de gelir (Elçi için `HERALD_LEVEL`; 5 yaparsanız 64'te gelir). Rehberleri yeniden görmek için uygulama verisini silin.
 - [ ] Mağaza ekran görüntüleri ve öne çıkan görsel (1024×500). _(Claude üretebilir.)_
 
 ## 2. Release imza anahtarı (keystore)

@@ -6,8 +6,11 @@ const SWIPE_MIN_DISTANCE := 12.0
 const SCREEN := Vector2(180, 320) # game area; extra space on tall phones shows the night sky
 const BOARD_SIZE := 168.0
 const MAX_POTIONS := 3
+const HERALD_LEVEL := 8 # the first 512 tile brings Chaos's herald
 const BOSS_LEVEL := 10 # the first 2048 tile wakes Chaos
-const BOSS_BONUS := 2048
+const TROPHIES: Array[String] = ["chain", "love", "roar", "herald", "chaos", "tile"]
+const TROPHY_TIME := 2.5 # seconds the "trophy" line stays under the board
+const TROPHY_ICON: Array[String] = ["#.###.#", "#.###.#", ".#####.", "..###..", "...#...", "..###.."]
 const HEART_ICON: Array[String] = [".##.##.", "#######", "#######", ".#####.", "..###..", "...#..."]
 const SOUND_ON_ICON: Array[String] = ["..#....", ".##..#.", "###...#", "###...#", "###...#", ".##..#.", "..#...."]
 const SOUND_OFF_ICON: Array[String] = ["..#....", ".##....", "###.#.#", "###..#.", "###.#.#", ".##....", "..#...."]
@@ -17,6 +20,8 @@ var zeus: Zeus
 var eros: Eros
 var ares: Ares
 var chaos: Chaos
+var herald: Herald
+var boss: Chaos # the one fighting (or last fought): herald or chaos
 var gods: Array[God] = []
 var sfx: Sfx
 var ads: Ads
@@ -28,9 +33,16 @@ var tutorial_seen := false
 var busy := false
 var over := false
 
-# the Chaos boss fight, once per game after the first 2048
+# boss fights, each once per game: the herald at the first 512, Chaos at the
+# first 2048
 var boss_active := false
-var boss_done := false
+var boss_done := false # Chaos beaten (or the game went past him)
+var herald_done := false
+var boss_moves := 0 # moves in the current Chaos fight
+var chaos_best := 0 # fewest moves to beat Chaos, 0 = never
+var trophies: Array[String] = []
+var boss_help_seen: Array[String] = [] # boss guides already shown once
+var _trophy_text := ""
 
 # love potion: lift a tile off the board and drop it back on any empty cell
 var potions := 0
@@ -117,8 +129,12 @@ func new_game() -> void:
 	for god in gods:
 		god.reset()
 	chaos.reset()
+	herald.reset()
+	boss = chaos
 	boss_active = false
 	boss_done = false
+	herald_done = false
+	boss_moves = 0
 	_show_boss(false)
 
 	board.clear()
@@ -143,12 +159,14 @@ func try_move(dir: Vector2i) -> void:
 	else:
 		sfx.play("move")
 
-	# in the boss fight every merge hits Chaos for the merged value
+	# in a boss fight every merge hits the boss for the merged value
+	if boss_active:
+		boss_moves += 1
 	if boss_active and merged:
 		var damage := 0
 		for level in board.merge_levels:
 			damage += Tile.value_of(level)
-		chaos.take_damage(chaos.apply_curse(damage))
+		boss.take_damage(boss.apply_curse(damage))
 		_update_hp()
 
 	busy = true
@@ -156,11 +174,11 @@ func try_move(dir: Vector2i) -> void:
 
 	board.spawn_tile()
 	if boss_active:
-		if chaos.hp <= 0:
+		if boss.hp <= 0:
 			await _defeat_boss()
 		else:
-			chaos.tick()
-			await chaos.after_move()
+			boss.tick()
+			await boss.after_move()
 	else:
 		if merged and potions < MAX_POTIONS and eros.roll_potion():
 			potions += 1
@@ -177,6 +195,7 @@ func try_move(dir: Vector2i) -> void:
 				break
 
 	_refresh_ui()
+	_check_top_tile()
 	await _check_boss()
 	await _check_stuck()
 	busy = false
@@ -194,17 +213,32 @@ func _check_stuck() -> void:
 		_show_game_over()
 
 
-# --- Chaos boss fight ---------------------------------------------------------
+# --- boss fights -------------------------------------------------------------
+
+func _top_level() -> int:
+	var top := -1
+	for tile in board.tiles():
+		top = maxi(top, tile.level)
+	return top
+
 
 func _check_boss() -> void:
-	if boss_active or boss_done or not board.tiles().any(func(t: Tile) -> bool: return t.level >= BOSS_LEVEL):
+	if boss_active:
 		return
-	await _start_boss()
+	var top := _top_level()
+	if not boss_done and top >= BOSS_LEVEL:
+		herald_done = true # went past the herald (e.g. Zeus x4 from 256 to 1024)
+		await _start_boss(chaos)
+	elif not herald_done and top >= HERALD_LEVEL:
+		await _start_boss(herald)
 
 
-func _start_boss() -> void:
+func _start_boss(which: Chaos) -> void:
+	boss = which
 	boss_active = true
-	chaos.reset()
+	boss.reset()
+	boss.pick_mood()
+	boss_moves = 0
 	ares.rage_left = 0
 	ares._update_status()
 	picking = false
@@ -213,62 +247,132 @@ func _start_boss() -> void:
 	# the gods vanish in a burst of their own colors
 	sfx.play("thunder")
 	sfx.buzz(150)
-	chaos.strobe(Chaos.VOID, [0.8, 0.0, 0.6, 0.0, 0.4, 0.0])
+	boss.strobe(Chaos.VOID, [0.8, 0.0, 0.6, 0.0, 0.4, 0.0])
 	Fx.shake(_shaker, 4, 0.6)
 	for god in gods:
 		Fx.sparks(_effects, _effects.get_global_transform().affine_inverse() * god.get_global_rect().get_center(), god.accent, 14, 26.0)
 	_show_boss(true)
-	chaos.banner(I18n.t("banner_chaos"), Chaos.PURPLE)
+	boss.banner(I18n.t(boss.banner_key()), boss.accent)
 	_refresh_ui()
+	_save_game()
 
 	await get_tree().create_timer(0.8).timeout
-	await _show_card("intro", Palette.GOLD)
+	# the first time ever, a short guide explains the fight
+	var key := boss.name_key()
+	if not boss_help_seen.has(key):
+		boss_help_seen.append(key)
+		_save()
+		_tutorial.open_pages(I18n.boss_pages(key))
+		await _tutorial.closed
+	await _show_card(boss.intro_card(), boss.accent)
 	_save_game()
 
 
 func _defeat_boss() -> void:
-	await chaos.explode()
+	await boss.explode()
 	boss_active = false
-	boss_done = true
+	var record := false
+	if boss == chaos:
+		boss_done = true
+		record = chaos_best == 0 or boss_moves < chaos_best
+		if record:
+			chaos_best = boss_moves
+			_save()
+	else:
+		herald_done = true
 	_show_boss(false)
 	for god in gods:
 		Fx.sparks(_effects, _effects.get_global_transform().affine_inverse() * god.get_global_rect().get_center(), Palette.GOLD, 14, 26.0)
-	_on_score_gained(BOSS_BONUS)
+	_on_score_gained(boss.bonus())
 	_refresh_ui()
-	await _show_card("victory", Palette.GOLD)
+	_unlock(boss.name_key())
+	await _show_card(boss.victory_card(), Palette.GOLD, record)
 
 
-# Swaps the gods' row for Chaos's portrait and health bar, with his music.
+# Swaps the gods' row for the boss's portrait and health bar, with his music.
 func _show_boss(on: bool) -> void:
 	for god in gods:
 		god.visible = not on
 	_boss_panel.visible = on
+	chaos.visible = boss == chaos
+	herald.visible = boss == herald
+	_chaos_title.text = boss.god_name
+	_chaos_title.color = boss.accent
 	_stars.chaos = on
 	_stars.queue_redraw()
 	if on:
 		_update_hp()
-		sfx.play_music("boss")
+		_play_boss_music()
 	else:
 		sfx.stop_music()
 
 
+# Same theme for both; slower and lower for the herald.
+func _play_boss_music() -> void:
+	sfx.play_music("boss", 1.0 if boss == chaos else 0.85)
+
+
 func _update_hp() -> void:
-	_hp_bar.ratio = float(chaos.hp) / chaos.max_hp
+	_hp_bar.ratio = float(boss.hp) / boss.max_hp
 	_hp_bar.queue_redraw()
-	_hp_label.text = I18n.t("hp") % [chaos.hp, chaos.max_hp]
+	_hp_label.text = I18n.t("hp") % [boss.hp, boss.max_hp]
 
 
-# Full-screen story card ("intro" / "victory"); returns when dismissed.
-func _show_card(kind: String, color: Color) -> void:
+# Full-screen story card ("<kind>_title", "<kind>_1".."_4"); returns when
+# dismissed. Chaos's intro names his mood, his victory card the move count.
+func _show_card(kind: String, color: Color, record := false) -> void:
 	_card_title.text = I18n.t(kind + "_title")
 	_card_title.color = color
 	for i in _card_lines.size():
 		_card_lines[i].text = I18n.t("%s_%d" % [kind, i + 1])
-	_card_button.text = I18n.t("fight" if kind == "intro" else "continue")
+	if kind == "intro":
+		_card_lines[3].text = I18n.t("mood_" + chaos.mood)
+	elif kind == "victory":
+		if record:
+			_card_lines[3].text = I18n.t("victory_record") % boss_moves
+		else:
+			_card_lines[3].text = I18n.t("victory_moves") % [boss_moves, chaos_best]
+	_card_button.text = I18n.t("fight" if kind.ends_with("intro") else "continue")
 	_card.visible = true
 	await _card_button.pressed
 	sfx.play("click")
 	_card.visible = false
+
+
+# --- trophies -----------------------------------------------------------------
+
+func _check_top_tile() -> void:
+	if _top_level() >= Board.MAX_LEVEL:
+		_unlock("tile")
+
+
+func _unlock(id: String) -> void:
+	if trophies.has(id):
+		return
+	trophies.append(id)
+	_save()
+	sfx.play("bonus", 1.3)
+	var text := I18n.t("trophy") % I18n.t("trophy_" + id)
+	_trophy_text = text
+	_refresh_ui()
+	await get_tree().create_timer(TROPHY_TIME).timeout
+	if _trophy_text == text:
+		_trophy_text = ""
+		_refresh_ui()
+
+
+func _trophy_page() -> Dictionary:
+	var lines: Array[String] = []
+	var colors: Array[Color] = []
+	for id in TROPHIES:
+		lines.append(I18n.t("trophy_" + id))
+		colors.append(Palette.GOLD if trophies.has(id) else Palette.DIM.darkened(0.2))
+	return {
+		"title": I18n.t("trophies") % [trophies.size(), TROPHIES.size()],
+		"art": "trophy",
+		"lines": lines,
+		"colors": colors,
+	}
 
 
 func _steal_potion() -> bool:
@@ -292,9 +396,9 @@ func _on_tap(at: Vector2) -> void:
 			sfx.play("click")
 			_tutorial.open(pages[god], true)
 			return
-	if boss_active and chaos.get_global_rect().has_point(at):
+	if boss_active and boss.get_global_rect().has_point(at):
 		sfx.play("click")
-		_tutorial.open_chaos()
+		_tutorial.open_pages(I18n.boss_pages(boss.name_key()))
 		return
 
 	if busy:
@@ -332,6 +436,7 @@ func _drop(cell: Vector2i) -> void:
 	_refresh_ui()
 
 	busy = true
+	_check_top_tile()
 	await _check_boss()
 	await _check_stuck()
 	busy = false
@@ -423,7 +528,7 @@ func _on_back() -> void:
 func _on_score_gained(points: int) -> void:
 	points = ares.apply_rage(points)
 	if boss_active:
-		points = chaos.apply_curse(points)
+		points = boss.apply_curse(points)
 	score += points
 	if score > hiscore:
 		hiscore = score
@@ -453,10 +558,13 @@ func _refresh_ui() -> void:
 	_held_slot.waiting = picking
 	_held_slot.queue_redraw()
 
-	_score_box.hot = ares.is_raging() or (boss_active and chaos.is_cursed())
+	_score_box.hot = ares.is_raging() or (boss_active and boss.is_cursed())
 	_score_box.queue_redraw()
 
-	if offering:
+	if _trophy_text != "":
+		_hint.text = _trophy_text
+		_hint.color = Palette.GOLD
+	elif offering:
 		_hint.text = I18n.t("hint_offer")
 		_hint.color = Eros.PINK
 	elif picking:
@@ -465,12 +573,12 @@ func _refresh_ui() -> void:
 	elif held_level >= 0:
 		_hint.text = I18n.t("hint_drop")
 		_hint.color = Eros.PINK
-	elif boss_active and chaos.is_cursed():
-		_hint.text = I18n.t("hint_curse") % str(chaos.curse_multiplier)
+	elif boss_active and boss.is_cursed():
+		_hint.text = I18n.t("hint_curse") % str(boss.curse_multiplier)
 		_hint.color = Chaos.PURPLE
 	elif boss_active:
-		_hint.text = I18n.t("hint_boss")
-		_hint.color = Chaos.PURPLE
+		_hint.text = I18n.t("hint_boss" if boss == chaos else "hint_herald")
+		_hint.color = boss.accent
 	elif ares.is_raging():
 		_hint.text = I18n.t("hint_rage") % str(ares.score_multiplier)
 		_hint.color = Ares.RED
@@ -488,9 +596,10 @@ func _apply_texts() -> void:
 	_final_score.text = I18n.t("score_n") % score
 	_try_again.text = I18n.t("try_again")
 	_continue_button.text = I18n.t("watch_continue")
-	chaos.god_name = I18n.t("chaos")
-	chaos.queue_redraw()
-	_chaos_title.text = I18n.t("chaos")
+	for which: Chaos in [chaos, herald]:
+		which.god_name = I18n.t(which.name_key())
+		which.queue_redraw()
+	_chaos_title.text = boss.god_name
 	_update_hp()
 	_refresh_ui()
 
@@ -541,7 +650,7 @@ func _on_continue() -> void:
 		_game_over.visible = false
 		_game_over.modulate.a = 0.0
 		if boss_active:
-			sfx.play_music("boss")
+			_play_boss_music()
 		await zeus.revive()
 		_refresh_ui()
 		if not board.can_move():
@@ -556,7 +665,7 @@ func _toggle_sound() -> void:
 	_sound_button.icon = SOUND_ON_ICON if sound_on else SOUND_OFF_ICON
 	_sound_button.queue_redraw()
 	if sound_on and boss_active:
-		sfx.play_music("boss")
+		_play_boss_music()
 	elif not sound_on:
 		sfx.stop_music()
 	sfx.play("click")
@@ -574,11 +683,17 @@ func _load_save() -> void:
 	sound_on = config.get_value("settings", "sound", true)
 	tutorial_seen = config.get_value("settings", "tutorial_seen", false)
 	I18n.lang = config.get_value("settings", "language", I18n.lang)
+	chaos_best = config.get_value("game", "chaos_best", 0)
+	trophies.assign(config.get_value("game", "trophies", []))
+	boss_help_seen.assign(config.get_value("settings", "boss_help_seen", []))
 
 
 func _save() -> void:
 	var config := ConfigFile.new()
 	config.set_value("game", "hiscore", hiscore)
+	config.set_value("game", "chaos_best", chaos_best)
+	config.set_value("game", "trophies", trophies)
+	config.set_value("settings", "boss_help_seen", boss_help_seen)
 	config.set_value("settings", "sound", sound_on)
 	config.set_value("settings", "tutorial_seen", tutorial_seen)
 	config.set_value("settings", "language", I18n.lang)
@@ -606,9 +721,13 @@ func _save_game() -> void:
 	config.set_value("gods", "rescues_used", zeus._rescues_used)
 	config.set_value("gods", "rage_left", ares.rage_left)
 	config.set_value("boss", "active", boss_active)
+	config.set_value("boss", "kind", boss.name_key())
 	config.set_value("boss", "done", boss_done)
-	config.set_value("boss", "hp", chaos.hp)
-	config.set_value("boss", "curse_left", chaos.curse_left)
+	config.set_value("boss", "herald_done", herald_done)
+	config.set_value("boss", "hp", boss.hp)
+	config.set_value("boss", "curse_left", boss.curse_left)
+	config.set_value("boss", "mood", boss.mood)
+	config.set_value("boss", "moves", boss_moves)
 	config.save(GAME_PATH)
 
 
@@ -634,9 +753,13 @@ func _load_game() -> bool:
 	ares.rage_left = config.get_value("gods", "rage_left", 0)
 	ares._update_status()
 	boss_active = config.get_value("boss", "active", false)
+	boss = herald if config.get_value("boss", "kind", "chaos") == "herald" else chaos
 	boss_done = config.get_value("boss", "done", false)
-	chaos.hp = config.get_value("boss", "hp", chaos.max_hp)
-	chaos.curse_left = config.get_value("boss", "curse_left", 0)
+	herald_done = config.get_value("boss", "herald_done", boss_done)
+	boss.hp = config.get_value("boss", "hp", boss.max_hp)
+	boss.curse_left = config.get_value("boss", "curse_left", 0)
+	boss.mood = config.get_value("boss", "mood", "")
+	boss_moves = config.get_value("boss", "moves", 0)
 	_show_boss(boss_active)
 	_update_score_labels()
 	_refresh_ui()
@@ -690,6 +813,14 @@ func _build_ui() -> void:
 		_tutorial.open()
 	)
 	_place(_shaker, help, Vector2(53, 29))
+	var trophy := PixelButton.new("", 13, 12, Palette.CELL.lightened(0.15))
+	trophy.icon = TROPHY_ICON
+	trophy.icon_color = Palette.GOLD
+	trophy.pressed.connect(func() -> void:
+		sfx.play("click")
+		_tutorial.open_custom(_trophy_page())
+	)
+	_place(_shaker, trophy, Vector2(67, 29))
 	_score_box = _make_score_box(Vector2(80, 6))
 	_score_label = _score_box.value
 	_best_box = _make_score_box(Vector2(128, 6))
@@ -700,6 +831,8 @@ func _build_ui() -> void:
 	eros = Eros.new()
 	ares = Ares.new()
 	gods = [zeus, eros, ares]
+	for god in gods:
+		god.feat.connect(_unlock)
 	for i in gods.size():
 		_place(_shaker, gods[i], Vector2(6 + i * 61, 42))
 
@@ -711,6 +844,10 @@ func _build_ui() -> void:
 	chaos = Chaos.new()
 	chaos.steal_potion = _steal_potion
 	_place(_boss_panel, chaos, Vector2(6, 42))
+	herald = Herald.new()
+	herald.steal_potion = _steal_potion
+	_place(_boss_panel, herald, Vector2(6, 42))
+	boss = chaos
 	_chaos_title = PixelLabel.new("", 2, Chaos.PURPLE, Palette.INK)
 	_place(_boss_panel, _chaos_title, Vector2(58, 46))
 	_hp_bar = HpBar.new()
@@ -764,7 +901,7 @@ func _build_ui() -> void:
 	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(flash)
 
-	for god in gods + [chaos]:
+	for god in gods + [chaos, herald]:
 		god.board = board
 		god.effects = _effects
 		god.shaker = _shaker

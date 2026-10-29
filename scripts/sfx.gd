@@ -51,11 +51,12 @@ func _ready() -> void:
 	)
 
 
-func play_music(track: String) -> void:
+func play_music(track: String, pitch := 1.0) -> void:
 	if not enabled:
 		return
 	if not _music_streams.has(track):
 		_music_streams[track] = _boss_theme()
+	_music.pitch_scale = pitch
 	if _music.stream != _music_streams[track] or not _music.playing:
 		_music.stream = _music_streams[track]
 		_music.play()

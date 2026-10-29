@@ -7,6 +7,7 @@ extends God
 #   halve  (anti-Zeus): a tile is halved, rarely quartered
 #   split  (anti-Eros): tiles break in two, and he steals a love potion
 #   flood  (anti-Ares): 2s pour onto the board and hits are weakened
+# Each fight he has a mood: one of the three comes much more often than usual.
 
 @export var max_hp := 3000
 @export var cooldown_moves := 4
@@ -14,8 +15,13 @@ extends God
 @export_range(0.0, 1.0) var quarter_chance := 0.2 # share of halvings that quarter instead
 @export_range(0.0, 1.0) var split_chance := 0.045
 @export_range(0.0, 1.0) var flood_chance := 0.04
+@export var flood_count := 3
 @export var curse_moves := 6
 @export var curse_multiplier := 0.5
+
+const MOODS: Array[String] = ["halve", "split", "flood"]
+const MOOD_BOOST := 1.8 # the favorite move of this fight
+const MOOD_DAMPEN := 0.6 # the other two
 
 const PURPLE := Color("b04cff")
 const VOID := Color("3d1f5c")
@@ -48,13 +54,45 @@ const SPRITE_COLORS := {
 
 var hp := 0
 var curse_left := 0
+var mood := "" # one of MOODS while a fight is on; empty for no favorite
 var steal_potion: Callable # returns true if the player had a potion to lose
 
 
 func _init() -> void:
 	super()
 	accent = PURPLE
-	god_name = I18n.t("chaos")
+	god_name = I18n.t(name_key())
+
+
+func name_key() -> String:
+	return "chaos"
+
+
+# Lines for the intro and victory cards: "<prefix>_title", "<prefix>_1".."_4".
+func intro_card() -> String:
+	return "intro"
+
+
+func victory_card() -> String:
+	return "victory"
+
+
+func banner_key() -> String:
+	return "banner_chaos"
+
+
+func bonus() -> int:
+	return 2048
+
+
+func pick_mood() -> void:
+	mood = MOODS.pick_random()
+
+
+func chance(move: String, base: float) -> float:
+	if mood == "":
+		return base
+	return base * (MOOD_BOOST if move == mood else MOOD_DAMPEN)
 
 
 func sprite() -> Array[String]:
@@ -73,6 +111,7 @@ func reset() -> void:
 	super()
 	hp = max_hp
 	curse_left = 0
+	mood = ""
 
 
 func is_cursed() -> bool:
@@ -105,7 +144,11 @@ func after_move() -> bool:
 	if hp <= 0 or _moves_since_action <= cooldown_moves:
 		return false
 
-	var moves := [[halve_chance, "halve"], [split_chance, "split"], [flood_chance, "flood"]]
+	var moves := [
+		[chance("halve", halve_chance), "halve"],
+		[chance("split", split_chance), "split"],
+		[chance("flood", flood_chance), "flood"],
+	]
 	moves.shuffle()
 	for move in moves:
 		if randf() >= move[0]:
@@ -197,7 +240,7 @@ func _flood() -> bool:
 	Fx.shake(shaker, 4, 0.4)
 	await wait(0.2)
 
-	for cell in empty.slice(0, 3):
+	for cell in empty.slice(0, flood_count):
 		board.place_tile(cell, 0)
 	curse_left = curse_moves
 	await wait(0.5)
