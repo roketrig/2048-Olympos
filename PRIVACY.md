@@ -1,14 +1,12 @@
 # Privacy Policy — 2048 Olympos
 
-_Last updated: [DATE]_
+_Last updated: October 29, 2026_
 
-> **Draft.** Fill in the bracketed parts and have it reviewed before publishing. This is not legal advice.
+2048 Olympos ("the game") is developed by Buğra Kasarcı, an independent developer ("I", "me"). This policy explains what data the game handles.
 
-2048 Olympos ("the game") is developed by [YOUR NAME / COMPANY] ("we"). This policy explains what data the game handles.
+## Data I collect
 
-## Data we collect
-
-We do not collect, store or sell any personal data ourselves. Your high score and settings are saved only on your device.
+I do not collect, store or sell any personal data myself. Your high score and settings are saved only on your device.
 
 ## Advertising
 
@@ -24,8 +22,8 @@ You can learn how Google uses this data at https://policies.google.com/technolog
 
 ## Children
 
-The game is not directed at children under 13, and we do not knowingly collect data from them.
+The game is not directed at children under 13, and I do not knowingly collect data from them.
 
 ## Contact
 
-[YOUR EMAIL]
+bugrakasarcii@gmail.com

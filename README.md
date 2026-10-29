@@ -33,4 +33,4 @@ Eros: `merge_chance` 0.08, `cooldown_moves` 4, `potion_chance` 0.06 (birleştirm
 
 ## Reklamlar
 
-Alt/üst banner, sıklık sınırlı interstitial ve isteğe bağlı ödüllü reklamlar `scripts/ads.gd` üzerinden yönetilir. AdMob kurulumu, uygulanan kurallar ve mağaza adımları için [ADS.md](ADS.md); gizlilik politikası taslağı için [PRIVACY.md](PRIVACY.md).
+Alt/üst banner, sıklık sınırlı interstitial ve isteğe bağlı ödüllü reklamlar `scripts/ads.gd` üzerinden yönetilir. AdMob kurulumu, uygulanan kurallar ve mağaza adımları için [ADS.md](ADS.md); gizlilik politikası taslağı için [PRIVACY.md](PRIVACY.md) (yayında: https://roketrig.github.io/2048-olympos/privacy).
