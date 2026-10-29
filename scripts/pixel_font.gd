@@ -3,6 +3,7 @@ extends RefCounted
 
 # A tiny 5x7 bitmap font drawn with rects, so the game needs no font files.
 # Lowercase letters fall back to uppercase, except "x" (used for multipliers).
+# Turkish letters with marks use 9 rows (2 above the line) or 8 rows (1 below).
 
 const W := 5
 const H := 7
@@ -54,6 +55,14 @@ const GLYPHS := {
 	"+": [".....", "..#..", "..#..", "#####", "..#..", "..#..", "....."],
 	">": [".#...", "..#..", "...#.", "....#", "...#.", "..#..", ".#..."],
 	"<": ["...#.", "..#..", ".#...", "#....", ".#...", "..#..", "...#."],
+	"=": [".....", ".....", "#####", ".....", "#####", ".....", "....."],
+	"'": ["..#..", "..#..", ".....", ".....", ".....", ".....", "....."],
+	"Ç": [".###.", "#...#", "#....", "#....", "#....", "#...#", ".###.", "..#.."],
+	"Ş": [".####", "#....", "#....", ".###.", "....#", "....#", "####.", "..#.."],
+	"Ö": [".#.#.", ".....", ".###.", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
+	"Ü": [".#.#.", ".....", "#...#", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
+	"İ": ["..#..", ".....", ".###.", "..#..", "..#..", "..#..", "..#..", "..#..", ".###."],
+	"Ğ": [".###.", ".....", ".###.", "#...#", "#....", "#.###", "#...#", "#...#", ".####"],
 }
 
 
@@ -78,6 +87,7 @@ static func _draw_glyphs(canvas: CanvasItem, text: String, pos: Vector2, px: int
 	var x := pos.x
 	for ch in text:
 		var glyph: Array = GLYPHS.get(ch, GLYPHS.get(ch.to_upper(), []))
+		var top := -2 if glyph.size() == 9 else 0 # marks above the line
 		for row in glyph.size():
 			var line: String = glyph[row]
 			# merge horizontal runs into one rect
@@ -89,5 +99,5 @@ static func _draw_glyphs(canvas: CanvasItem, text: String, pos: Vector2, px: int
 				var start := col
 				while col < W and line[col] == "#":
 					col += 1
-				canvas.draw_rect(Rect2(x + start * px, pos.y + row * px, (col - start) * px, px), color)
+				canvas.draw_rect(Rect2(x + start * px, pos.y + (row + top) * px, (col - start) * px, px), color)
 		x += (W + 1) * px

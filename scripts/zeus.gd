@@ -102,7 +102,7 @@ func try_rescue() -> bool:
 		if tile != null:
 			_rescues_used += 1
 			acted()
-			banner("DIVINE RESCUE!", Palette.GOLD)
+			banner(I18n.t("banner_rescue"), Palette.GOLD)
 			await _strike(tile, steps)
 			return true
 
@@ -115,12 +115,12 @@ func revive() -> void:
 	for steps in [1, 2]:
 		var tile := _pick_target(steps, true)
 		if tile != null:
-			banner("ZEUS SAVES YOU!", Palette.GOLD)
+			banner(I18n.t("banner_saves"), Palette.GOLD)
 			await _strike(tile, steps)
 			return
 
 	# no strike opens a merge: smite the three smallest tiles to make room
-	banner("ZEUS SMITES!", Palette.GOLD)
+	banner(I18n.t("banner_smites"), Palette.GOLD)
 	sfx.play("thunder")
 	strobe(Color.WHITE)
 	Fx.shake(shaker, 4, 0.4)
@@ -186,6 +186,7 @@ func _pick_chain() -> Array[Tile]:
 
 
 func _strike(tile: Tile, steps: int) -> void:
+	sfx.buzz(40)
 	sfx.play("zap")
 	sfx.play("thunder")
 
@@ -208,7 +209,8 @@ func _strike(tile: Tile, steps: int) -> void:
 
 func _chain_strike(chain: Array[Tile]) -> void:
 	sfx.play("thunder")
-	banner("CHAIN x%d" % chain.size(), Palette.GOLD)
+	banner(I18n.t("banner_chain") % chain.size(), Palette.GOLD)
+	sfx.buzz(60)
 	strobe(Color.WHITE, [0.8, 0.0, 0.5, 0.0, 0.4, 0.0])
 	Fx.shake(shaker, 4, 0.5)
 

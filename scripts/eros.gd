@@ -69,7 +69,7 @@ func after_move() -> bool:
 
 	acted()
 	sfx.play("love")
-	banner("LOVE MERGE!", PINK)
+	banner(I18n.t("banner_love"), PINK)
 
 	var from := portrait_point()
 	for pair in pairs:
@@ -118,7 +118,7 @@ func gift_potion(to: Vector2) -> void:
 	_glow = 1.0
 	sfx.play("potion")
 	_fly_heart(portrait_point(), to.floor())
-	float_text("+POTION", to - Vector2(0, 12), 1, PINK)
+	float_text(I18n.t("potion_plus"), to - Vector2(0, 12), 1, PINK)
 
 
 func _fly_heart(from: Vector2, to: Vector2) -> void:

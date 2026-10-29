@@ -1,54 +1,14 @@
 class_name Tutorial
 extends Control
 
-# "How to play" pages. Opened on first launch, from the ? button, and on a
-# single page when the player taps a god's portrait.
+# "How to play" pages (texts live in I18n). Opened on first launch, from the
+# ? button, and on a single page when the player taps a god's portrait. Also
+# holds the credits/licenses, privacy and language buttons.
 
 signal closed
+signal language_changed
 
 const PAGE_WIDTH := 164.0
-const PAGES := [
-	{"title": "HOW TO PLAY", "art": "merge", "lines": [
-		"SWIPE TO MOVE ALL TILES.",
-		"EQUAL NUMBERS MERGE.",
-		"REACH 2048!",
-		"",
-		"THE GODS OF OLYMPOS",
-		"WATCH OVER YOU...",
-	]},
-	{"title": "ZEUS", "art": "zeus", "lines": [
-		"STRIKES A TILE WITH",
-		"LIGHTNING: x2 OR x4.",
-		"RARELY THE BOLT CHAINS",
-		"FROM TILE TO TILE, x2.",
-		"SAVES YOU ONCE WHEN",
-		"NO MOVES ARE LEFT.",
-	]},
-	{"title": "EROS", "art": "eros", "lines": [
-		"MERGES EVERY PAIR OF",
-		"EQUAL NEIGHBORS",
-		"AT ONCE.",
-		"",
-		"WHEN YOU MERGE, HE MAY",
-		"GIVE YOU A LOVE POTION.",
-	]},
-	{"title": "LOVE POTION", "art": "potion", "lines": [
-		"TAP THE HEART BUTTON,",
-		"THEN TAP A TILE TO",
-		"LIFT IT OFF THE BOARD.",
-		"",
-		"TAP AN EMPTY CELL TO",
-		"PUT IT BACK, ANYTIME.",
-	]},
-	{"title": "ARES", "art": "ares", "lines": [
-		"HIS WAR CRY BLOWS",
-		"ALL 2S OFF THE BOARD.",
-		"",
-		"THEN FOR 8 MOVES",
-		"YOUR SCORE IS x1.5!",
-		"",
-	]},
-]
 const PAGE_ZEUS := 1
 const PAGE_EROS := 2
 const PAGE_ARES := 4
@@ -63,6 +23,9 @@ var _content: Control
 var _back: PixelButton
 var _next: PixelButton
 var _privacy: PixelButton
+var _credits_button: PixelButton
+var _language: PixelButton
+var _credits: Control
 
 
 func _init() -> void:
@@ -94,14 +57,30 @@ func _init() -> void:
 	_next.pressed.connect(func() -> void: _turn(1))
 	box.add_child(_next)
 
+	_credits_button = PixelButton.new("", 56, 16, Palette.CELL)
+	_credits_button.pressed.connect(func() -> void:
+		sfx.play("click")
+		_show_credits()
+	)
+	box.add_child(_credits_button)
+
 	# consent can be changed here when the ad SDK says it applies (UMP)
-	_privacy = PixelButton.new("PRIVACY", 48, 18, Palette.CELL)
-	_privacy.position = Vector2(66, 254)
+	_privacy = PixelButton.new("", 56, 16, Palette.CELL)
 	_privacy.pressed.connect(func() -> void:
 		sfx.play("click")
 		ads.show_privacy_options()
 	)
 	box.add_child(_privacy)
+
+	_language = PixelButton.new("", 24, 16, Palette.CELL)
+	_language.pressed.connect(func() -> void:
+		sfx.play("click")
+		var index := I18n.LANGUAGES.find(I18n.lang)
+		I18n.lang = I18n.LANGUAGES[(index + 1) % I18n.LANGUAGES.size()]
+		language_changed.emit()
+		_show_page()
+	)
+	box.add_child(_language)
 
 
 func open(page := 0, single := false) -> void:
@@ -111,13 +90,22 @@ func open(page := 0, single := false) -> void:
 	_show_page()
 
 
+func close() -> void:
+	_close_credits()
+	visible = false
+	closed.emit()
+
+
+func credits_open() -> bool:
+	return _credits != null
+
+
 func _turn(step: int) -> void:
 	sfx.play("click")
-	if _single or _page + step >= PAGES.size():
-		visible = false
-		closed.emit()
+	if _single or _page + step >= I18n.pages().size():
+		close()
 		return
-	_page = clampi(_page + step, 0, PAGES.size() - 1)
+	_page = clampi(_page + step, 0, I18n.pages().size() - 1)
 	_show_page()
 
 
@@ -125,7 +113,8 @@ func _show_page() -> void:
 	for child in _content.get_children():
 		child.queue_free()
 
-	var page: Dictionary = PAGES[_page]
+	var pages := I18n.pages()
+	var page: Dictionary = pages[_page]
 	var accent := _accent(page["art"])
 
 	_add_label(page["title"], 2, accent, Vector2(0, 50))
@@ -137,16 +126,112 @@ func _show_page() -> void:
 
 	if not _single:
 		var dots := Dots.new()
-		dots.count = PAGES.size()
+		dots.count = pages.size()
 		dots.current = _page
-		dots.position = Vector2(0, 240)
+		dots.position = Vector2(0, 244)
 		dots.size = Vector2(180, 4)
 		_content.add_child(dots)
 
 	_back.visible = not _single and _page > 0
-	_next.text = "OK" if _single else ("PLAY" if _page == PAGES.size() - 1 else "NEXT")
+	_back.text = I18n.t("back")
+	_next.text = I18n.t("ok") if _single else I18n.t("play" if _page == pages.size() - 1 else "next")
 	_next.position.x = 68 if _single else 122
+
+	# extra row: credits, privacy (only where consent applies), language
+	_credits_button.text = I18n.t("credits")
+	_privacy.text = I18n.t("privacy")
+	_language.text = I18n.lang.to_upper()
+	_credits_button.visible = not _single
 	_privacy.visible = not _single and ads != null and ads.privacy_options_required()
+	_language.visible = not _single
+	var row: Array[PixelButton] = []
+	for button in [_credits_button, _privacy, _language]:
+		if button.visible:
+			row.append(button)
+	var width := 0.0
+	for button in row:
+		width += button.size.x + 4.0
+	var x := floorf(8 + (PAGE_WIDTH - width + 4.0) / 2.0)
+	for button in row:
+		button.position = Vector2(x, 222)
+		x += button.size.x + 4.0
+
+
+# --- credits ------------------------------------------------------------------
+
+func _show_credits() -> void:
+	_credits = Control.new()
+	_credits.size = box.size
+	box.add_child(_credits)
+
+	var panel := Card.new()
+	panel.size = Vector2(PAGE_WIDTH, 240)
+	panel.position = Vector2(8, 40)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_credits.add_child(panel)
+
+	var lines := [
+		[I18n.t("credits"), 2, Palette.GOLD, 50],
+		["2048 OLYMPOS", 1, Palette.LIGHT, 72],
+		[I18n.t("credits_by"), 1, Palette.DIM, 86],
+		["BUĞRA KASARCI", 1, Palette.LIGHT, 96],
+		[I18n.t("credits_engine"), 1, Palette.DIM, 110],
+		[I18n.t("credits_licenses"), 1, Palette.DIM, 124],
+	]
+	for line in lines:
+		var label := PixelLabel.new(line[0], line[1], line[2], Palette.INK)
+		label.fixed_width = 180
+		label.position = Vector2(0, line[3])
+		_credits.add_child(label)
+
+	# the full license texts, scrollable (Godot's MIT license and its parts)
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(14, 136)
+	scroll.size = Vector2(152, 110)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_credits.add_child(scroll)
+
+	var text := Label.new()
+	text.text = _license_text()
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.custom_minimum_size = Vector2(144, 0)
+	text.add_theme_font_size_override("font_size", 5)
+	text.add_theme_color_override("font_color", Palette.LIGHT)
+	scroll.add_child(text)
+
+	var back := PixelButton.new(I18n.t("back"), 44, 18, Palette.CELL.lightened(0.15))
+	back.position = Vector2(68, 254)
+	back.pressed.connect(func() -> void:
+		sfx.play("click")
+		_close_credits()
+	)
+	_credits.add_child(back)
+
+
+func _close_credits() -> void:
+	if _credits != null:
+		_credits.queue_free()
+		_credits = null
+
+
+static func _license_text() -> String:
+	var parts := PackedStringArray()
+	parts.append("2048 Olympos (c) 2026 Buğra Kasarcı.")
+	parts.append("This game uses Godot Engine, available under the following license:")
+	parts.append(Engine.get_license_text())
+	parts.append("Godot Engine includes third-party components:")
+	for component in Engine.get_copyright_info():
+		for part in component["parts"]:
+			parts.append("%s
+(c) %s
+License: %s" % [component["name"], ", ".join(part["copyright"]), part["license"]])
+	var licenses := Engine.get_license_info()
+	for name in licenses:
+		parts.append("--- %s ---
+%s" % [name, licenses[name]])
+	return "
+
+".join(parts)
 
 
 func _add_label(text: String, px: int, color: Color, at: Vector2) -> void:

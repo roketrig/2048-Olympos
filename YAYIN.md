@@ -21,6 +21,13 @@ _Son güncelleme: 29 Ekim 2026_
   - Ödüllü devam ve ödüllü iksir.
   - PRIVACY butonu.
 - [x] Android (AAB + test APK) ve iOS export ayarları.
+- [x] Credits / Lisans ekranı: "?" → HAKKINDA. Godot MIT bildirimi ve tüm alt bileşenlerin lisansları burada.
+- [x] Türkçe ve İngilizce dil desteği. Telefon Türkçeyse oyun Türkçe açılır; "?" ekranındaki TR/EN butonuyla dil değiştirilebilir.
+- [x] 2048'e ulaşınca "Tanrılar memnun" kutlama ekranı (oyun başına bir kez, sonra devam edilebilir).
+- [x] Android geri tuşu: önce açık pencereyi kapatır, en son oyundan çıkar.
+- [x] Kaldığın yerden devam: Uygulama kapansa da tahta, skor, iksirler ve Ares'in öfkesi kaydediliyor.
+- [x] Büyük anlarda kısa titreşim (Zeus, Ares, kazanma, oyun sonu). Ses butonu titreşimi de kapatıyor.
+- [x] Otomatik testler repoda (`tests/test_game.gd`, 48 kontrol). Testler export'a dahil edilmiyor.
 - [x] Gizlilik politikası yayında: https://roketrig.github.io/2048-olympos/privacy
 - [x] Geliştirici sitesi: https://roketrig.github.io
 
@@ -28,7 +35,6 @@ _Son güncelleme: 29 Ekim 2026_
 
 ## 1. Oyun içi son işler
 
-- [ ] **Credits / Licenses ekranı.** Godot MIT lisans bildirimini "?" ekranına ekleyin. Lisansın tek şartı bu. _(Claude yapabilir.)_
 - [ ] **Telefonda test.** Debug APK'yı kurup oynayın ve notlarınızı alın:
   - Tanrıların ne sıklıkla geldiği
   - Sesler
@@ -39,8 +45,7 @@ _Son güncelleme: 29 Ekim 2026_
   - `zeus.gd`: `strike_chance` 0.12, `chain_chance` 0.2
   - `eros.gd`: `merge_chance` 0.08, `potion_chance` 0.06
   - `ares.gd`: `scream_chance` 0.07
-- [ ] _(İsteğe bağlı)_ Türkçe dil desteği. Pikselli fonta ç, ğ, ı, ö, ş, ü harflerini eklemek gerekir.
-- [ ] _(İsteğe bağlı)_ 2048'e ulaşınca bir "Kazandın!" ekranı. Şu an oyun 2048'den sonra sessizce devam ediyor.
+- [ ] Mağaza ekran görüntüleri ve öne çıkan görsel (1024×500). _(Claude üretebilir.)_
 
 ## 2. Release imza anahtarı (keystore)
 
@@ -138,5 +143,5 @@ _Son güncelleme: 29 Ekim 2026_
   - Yerel klasör: `Masaüstü\godot`
   - Eski Unity sürümü: `Masaüstü\2048`. Oradaki `2048\godot` kopyası artık kullanılmıyor, silinebilir.
 - **Test APK'sı:** `Masaüstü\build\android\2048-olympos-debug.apk`. Bu klasör OneDrive'da olduğu için telefondan OneDrive uygulamasıyla indirilebilir.
-- **Testler:** Otomatik testler şu an repoda değil, Claude'un geçici klasöründe duruyor. İleride repoya eklenebilir.
+- **Testler:** `Godot --path . -s tests/test_game.gd` komutuyla çalışır ve sonuçları PASS/FAIL satırları olarak yazar. Kendi kayıt dosyalarınız test sırasında kenara alınır, sonra geri konur.
 - **Ayrıntılı belgeler:** Reklamlar için `ADS.md`, gizlilik politikası için `PRIVACY.md`.

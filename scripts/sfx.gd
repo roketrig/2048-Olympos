@@ -39,6 +39,12 @@ func _ready() -> void:
 		_players.append(player)
 
 
+# Short vibration for big moments; follows the same on/off setting as sound.
+func buzz(milliseconds: int) -> void:
+	if enabled and OS.has_feature("mobile"):
+		Input.vibrate_handheld(milliseconds)
+
+
 func play(sound: String, pitch := 1.0) -> void:
 	if not enabled or not _streams.has(sound):
 		return

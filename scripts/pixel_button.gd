@@ -48,10 +48,11 @@ func _draw() -> void:
 	# icon + text, centered together
 	var icon_size := Vector2(icon[0].length(), icon.size())
 	var text_size := PixelFont.measure(text, 1)
-	var x := floorf(body.position.x + (body.size.x - icon_size.x - 2 - text_size.x) / 2.0)
+	var gap := 2.0 if text != "" else 0.0
+	var x := floorf(body.position.x + (body.size.x - icon_size.x - gap - text_size.x) / 2.0)
 	var icon_y := floorf(body.position.y + (body.size.y - icon_size.y) / 2.0)
 	for y in icon.size():
 		for i in icon[y].length():
 			if icon[y][i] != ".":
 				draw_rect(Rect2(x + i, icon_y + y, 1, 1), icon_color if not disabled else Palette.DIM)
-	PixelFont.draw(self, text, Vector2(x + icon_size.x + 2, floorf(body.position.y + (body.size.y - text_size.y) / 2.0)), 1, text_color, color.darkened(0.45))
+	PixelFont.draw(self, text, Vector2(x + icon_size.x + gap, floorf(body.position.y + (body.size.y - text_size.y) / 2.0)), 1, text_color, color.darkened(0.45))

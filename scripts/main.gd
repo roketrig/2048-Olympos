@@ -1,11 +1,15 @@
 extends Control
 
-const SAVE_PATH := "user://save.cfg"
+const SAVE_PATH := "user://save.cfg" # settings and best score
+const GAME_PATH := "user://game.cfg" # the game in progress, to resume after the app closes
 const SWIPE_MIN_DISTANCE := 12.0
 const SCREEN := Vector2(180, 320) # game area; extra space on tall phones shows the night sky
 const BOARD_SIZE := 168.0
 const MAX_POTIONS := 3
+const WIN_LEVEL := 10 # 2048
 const HEART_ICON: Array[String] = [".##.##.", "#######", "#######", ".#####.", "..###..", "...#..."]
+const SOUND_ON_ICON: Array[String] = ["..#....", ".##..#.", "###...#", "###...#", "###...#", ".##..#.", "..#...."]
+const SOUND_OFF_ICON: Array[String] = ["..#....", ".##....", "###.#.#", "###..#.", "###.#.#", ".##....", "..#...."]
 
 var board: Board
 var zeus: Zeus
@@ -21,6 +25,7 @@ var sound_on := true
 var tutorial_seen := false
 var busy := false
 var over := false
+var won := false # the 2048 celebration shows once per game
 
 # love potion: lift a tile off the board and drop it back on any empty cell
 var potions := 0
@@ -33,19 +38,27 @@ var continued := false # the rewarded "continue" is offered once per game
 var _screen: Control
 var _shaker: Control
 var _score_box: Box
+var _best_box: Box
 var _score_label: PixelLabel
 var _hiscore_label: PixelLabel
 var _potion_button: PixelButton
 var _held_slot: HeldSlot
+var _new_button: PixelButton
 var _sound_button: PixelButton
 var _hint: PixelLabel
 var _game_over: Control
 var _game_over_tween: Tween
+var _game_over_title: PixelLabel
+var _try_again: PixelButton
 var _continue_button: PixelButton
 var _game_over_panel: Box
-var _tutorial: Tutorial
 var _game_over_box: Control
 var _final_score: PixelLabel
+var _win: Control
+var _win_box: Control
+var _win_text: PixelLabel
+var _keep_going: PixelButton
+var _tutorial: Tutorial
 var _swipe_start := Vector2.ZERO
 var _swiping := false
 
@@ -61,10 +74,12 @@ func _ready() -> void:
 	add_child(ads)
 
 	_build_ui()
+	_apply_texts()
 	ads.layout_changed.connect(_layout)
 	get_viewport().size_changed.connect(_layout)
 	_layout()
-	new_game()
+	if not _load_game():
+		new_game()
 	if not tutorial_seen:
 		_tutorial.open()
 
@@ -73,6 +88,7 @@ func new_game() -> void:
 	score = 0
 	over = false
 	busy = false
+	won = false
 	potions = 0
 	held_level = -1
 	picking = false
@@ -85,6 +101,7 @@ func new_game() -> void:
 		_game_over_tween.kill()
 	_game_over.visible = false
 	_game_over.modulate.a = 0.0
+	_win.visible = false
 
 	for god in gods:
 		god.reset()
@@ -92,6 +109,7 @@ func new_game() -> void:
 	board.spawn_tile()
 	board.spawn_tile()
 	_refresh_ui()
+	_save_game()
 
 
 func try_move(dir: Vector2i) -> void:
@@ -128,8 +146,10 @@ func try_move(dir: Vector2i) -> void:
 			break
 
 	_refresh_ui()
+	_check_win()
 	await _check_stuck()
 	busy = false
+	_save_game()
 
 
 func _check_stuck() -> void:
@@ -140,8 +160,20 @@ func _check_stuck() -> void:
 		_show_game_over()
 
 
+func _check_win() -> void:
+	if won or not board.tiles().any(func(t: Tile) -> bool: return t.level >= WIN_LEVEL):
+		return
+	won = true
+	sfx.play("bonus")
+	sfx.buzz(80)
+	var center := Vector2(SCREEN.x / 2.0, 110)
+	for color in [Palette.GOLD, Eros.PINK, Color.WHITE, Palette.TILES[9]]:
+		Fx.sparks(_win_box, center + Vector2(randf_range(-40, 40), randf_range(-20, 20)), color, 12, 40.0)
+	_win.visible = true
+
+
 func _on_tap(at: Vector2) -> void:
-	if over:
+	if over or _win.visible:
 		return
 
 	# tapping a god explains what it does
@@ -177,6 +209,7 @@ func _lift(tile: Tile) -> void:
 	board.remove_tile(tile)
 	sfx.play("lift")
 	_refresh_ui()
+	_save_game()
 
 
 func _drop(cell: Vector2i) -> void:
@@ -188,6 +221,7 @@ func _drop(cell: Vector2i) -> void:
 	busy = true
 	await _check_stuck()
 	busy = false
+	_save_game()
 
 
 func _on_potion_pressed() -> void:
@@ -206,6 +240,7 @@ func _on_potion_pressed() -> void:
 			potion_ads_used += 1
 			potions += 1
 			eros.gift_potion(eros.to_effects(_potion_button.global_position + _potion_button.size / 2.0))
+			_save_game()
 	elif _can_offer_potion_ad():
 		offering = true
 	_refresh_ui()
@@ -216,7 +251,7 @@ func _can_offer_potion_ad() -> bool:
 
 
 func _input(event: InputEvent) -> void:
-	if _tutorial.visible or ads.is_showing():
+	if _tutorial.visible or ads.is_showing() or _win.visible:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
@@ -241,6 +276,35 @@ func _input(event: InputEvent) -> void:
 				try_move(Vector2i.RIGHT if delta.x > 0 else Vector2i.LEFT)
 			else:
 				try_move(Vector2i.DOWN if delta.y > 0 else Vector2i.UP)
+
+
+func _notification(what: int) -> void:
+	match what:
+		NOTIFICATION_WM_GO_BACK_REQUEST:
+			_on_back()
+		NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_WM_CLOSE_REQUEST:
+			if board != null:
+				_save_game()
+
+
+# Android back button: closes the topmost thing, and leaves the game last.
+func _on_back() -> void:
+	if ads.is_showing():
+		return
+	if _tutorial.credits_open() or _tutorial.visible:
+		if _tutorial.credits_open():
+			_tutorial._close_credits()
+		else:
+			_tutorial.close()
+	elif _win.visible:
+		_win.visible = false
+	elif picking or offering:
+		picking = false
+		offering = false
+		_refresh_ui()
+	else:
+		_save_game()
+		get_tree().quit()
 
 
 func _on_score_gained(points: int) -> void:
@@ -277,26 +341,46 @@ func _refresh_ui() -> void:
 	_score_box.queue_redraw()
 
 	if offering:
-		_hint.text = "TAP AGAIN: AD FOR A POTION"
+		_hint.text = I18n.t("hint_offer")
 		_hint.color = Eros.PINK
 	elif picking:
-		_hint.text = "TAP A TILE TO LIFT IT"
+		_hint.text = I18n.t("hint_pick")
 		_hint.color = Eros.PINK
 	elif held_level >= 0:
-		_hint.text = "TAP EMPTY CELL TO DROP"
+		_hint.text = I18n.t("hint_drop")
 		_hint.color = Eros.PINK
 	elif ares.is_raging():
-		_hint.text = "ARES RAGE: SCORE x%s" % str(ares.score_multiplier)
+		_hint.text = I18n.t("hint_rage") % str(ares.score_multiplier)
 		_hint.color = Ares.RED
 	else:
-		_hint.text = "TAP A GOD TO SEE WHAT IT DOES" if score == 0 else "SWIPE TO MERGE TILES"
+		_hint.text = I18n.t("hint_gods") if score == 0 else I18n.t("hint_swipe")
 		_hint.color = Palette.DIM
+
+
+# Sets every fixed text; called at start and when the language changes.
+func _apply_texts() -> void:
+	_score_box.caption.text = I18n.t("score")
+	_best_box.caption.text = I18n.t("best")
+	_new_button.text = I18n.t("new_game")
+	_game_over_title.text = I18n.t("game_over")
+	_final_score.text = I18n.t("score_n") % score
+	_try_again.text = I18n.t("try_again")
+	_continue_button.text = I18n.t("watch_continue")
+	_win_text.text = I18n.t("win_text")
+	_keep_going.text = I18n.t("keep_going")
+	_refresh_ui()
+
+
+func _on_language_changed() -> void:
+	_apply_texts()
+	_save()
 
 
 func _show_game_over() -> void:
 	over = true
 	sfx.play("over")
-	_final_score.text = "SCORE %d" % score
+	sfx.buzz(60)
+	_final_score.text = I18n.t("score_n") % score
 	_continue_button.visible = not continued and ads.rewarded_ready()
 	_game_over_panel.size.y = 104 if _continue_button.visible else 80
 	ads.count_game_over()
@@ -335,23 +419,29 @@ func _on_continue() -> void:
 		if not board.can_move():
 			_show_game_over()
 	busy = false
+	_save_game()
 
 
 func _toggle_sound() -> void:
 	sound_on = not sound_on
 	sfx.enabled = sound_on
-	_sound_button.text = "SFX ON" if sound_on else "SFX OFF"
+	_sound_button.icon = SOUND_ON_ICON if sound_on else SOUND_OFF_ICON
+	_sound_button.queue_redraw()
 	sfx.play("click")
 	_save()
 
 
+# --- saving -----------------------------------------------------------------
+
 func _load_save() -> void:
+	I18n.lang = I18n.detect()
 	var config := ConfigFile.new()
 	if config.load(SAVE_PATH) != OK:
 		return
 	hiscore = config.get_value("game", "hiscore", 0)
 	sound_on = config.get_value("settings", "sound", true)
 	tutorial_seen = config.get_value("settings", "tutorial_seen", false)
+	I18n.lang = config.get_value("settings", "language", I18n.lang)
 
 
 func _save() -> void:
@@ -359,7 +449,59 @@ func _save() -> void:
 	config.set_value("game", "hiscore", hiscore)
 	config.set_value("settings", "sound", sound_on)
 	config.set_value("settings", "tutorial_seen", tutorial_seen)
+	config.set_value("settings", "language", I18n.lang)
 	config.save(SAVE_PATH)
+
+
+# The game in progress. A finished game is not kept: the next launch starts fresh.
+func _save_game() -> void:
+	if over:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(GAME_PATH))
+		return
+	var levels := []
+	for y in Board.SIZE:
+		for x in Board.SIZE:
+			var tile := board.tile_at(Vector2i(x, y))
+			levels.append(tile.level if tile != null else -1)
+
+	var config := ConfigFile.new()
+	config.set_value("game", "levels", levels)
+	config.set_value("game", "score", score)
+	config.set_value("game", "won", won)
+	config.set_value("game", "potions", potions)
+	config.set_value("game", "held_level", held_level)
+	config.set_value("game", "potion_ads_used", potion_ads_used)
+	config.set_value("game", "continued", continued)
+	config.set_value("gods", "rescues_used", zeus._rescues_used)
+	config.set_value("gods", "rage_left", ares.rage_left)
+	config.save(GAME_PATH)
+
+
+func _load_game() -> bool:
+	var config := ConfigFile.new()
+	if config.load(GAME_PATH) != OK:
+		return false
+	var levels: Array = config.get_value("game", "levels", [])
+	if levels.size() != Board.SIZE * Board.SIZE or levels.all(func(l: int) -> bool: return l < 0):
+		return false
+
+	new_game()
+	board.clear()
+	for i in levels.size():
+		if levels[i] >= 0:
+			board.place_tile(Vector2i(i % Board.SIZE, i / Board.SIZE), mini(levels[i], Board.MAX_LEVEL))
+	score = config.get_value("game", "score", 0)
+	won = config.get_value("game", "won", false)
+	potions = config.get_value("game", "potions", 0)
+	held_level = config.get_value("game", "held_level", -1)
+	potion_ads_used = config.get_value("game", "potion_ads_used", 0)
+	continued = config.get_value("game", "continued", false)
+	zeus._rescues_used = config.get_value("gods", "rescues_used", 0)
+	ares.rage_left = config.get_value("gods", "rage_left", 0)
+	ares._update_status()
+	_update_score_labels()
+	_refresh_ui()
+	return true
 
 
 # --- UI ---------------------------------------------------------------------
@@ -382,7 +524,7 @@ func _layout() -> void:
 	if window_scale * fit >= 3.0:
 		fit = floorf(window_scale * fit) / window_scale
 	var origin := ((area.position + (area.size - SCREEN * fit) / 2.0) * window_scale).floor() / window_scale
-	for box in [_screen, _game_over_box, _tutorial.box]:
+	for box in [_screen, _game_over_box, _win_box, _tutorial.box]:
 		box.scale = Vector2(fit, fit)
 		box.position = origin
 
@@ -408,9 +550,10 @@ func _build_ui() -> void:
 		_tutorial.open()
 	)
 	_place(_shaker, help, Vector2(53, 29))
-	_score_box = _make_score_box(Vector2(80, 6), "SCORE")
+	_score_box = _make_score_box(Vector2(80, 6))
 	_score_label = _score_box.value
-	_hiscore_label = _make_score_box(Vector2(128, 6), "BEST").value
+	_best_box = _make_score_box(Vector2(128, 6))
+	_hiscore_label = _best_box.value
 
 	# the gods
 	zeus = Zeus.new()
@@ -438,18 +581,20 @@ func _build_ui() -> void:
 	_held_slot.size = Vector2(32, 20)
 	_place(_shaker, _held_slot, Vector2(40, 278))
 
-	var new_button := PixelButton.new("NEW GAME", 54, 20)
-	new_button.pressed.connect(func() -> void:
+	_new_button = PixelButton.new("", 74, 20)
+	_new_button.pressed.connect(func() -> void:
 		sfx.play("click")
 		new_game()
 	)
-	_place(_shaker, new_button, Vector2(74, 278))
+	_place(_shaker, _new_button, Vector2(74, 278))
 
-	_sound_button = PixelButton.new("SFX ON" if sound_on else "SFX OFF", 44, 20, Palette.CELL.lightened(0.15))
+	_sound_button = PixelButton.new("", 24, 20, Palette.CELL.lightened(0.15))
+	_sound_button.icon = SOUND_ON_ICON if sound_on else SOUND_OFF_ICON
+	_sound_button.icon_color = Palette.LIGHT
 	_sound_button.pressed.connect(_toggle_sound)
-	_place(_shaker, _sound_button, Vector2(130, 278))
+	_place(_shaker, _sound_button, Vector2(150, 278))
 
-	_hint = _centered("SWIPE TO MERGE TILES", 1, Palette.DIM, SCREEN.x)
+	_hint = _centered("", 1, Palette.DIM, SCREEN.x)
 	_place(_shaker, _hint, Vector2(0, 306))
 
 	# effects layer above the board (lightning, hearts, sparks, texts)
@@ -482,17 +627,41 @@ func _build_ui() -> void:
 	_game_over_panel = Box.new()
 	_game_over_panel.size = Vector2(140, 104)
 	_place(_game_over_box, _game_over_panel, Vector2(20, 116))
-	_place(_game_over_box, _centered("GAME OVER", 2, Palette.GOLD, SCREEN.x, Palette.INK), Vector2(0, 128))
-	_final_score = _centered("SCORE 0", 1, Palette.LIGHT, SCREEN.x)
+	_game_over_title = _centered("", 2, Palette.GOLD, SCREEN.x, Palette.INK)
+	_place(_game_over_box, _game_over_title, Vector2(0, 128))
+	_final_score = _centered("", 1, Palette.LIGHT, SCREEN.x)
 	_place(_game_over_box, _final_score, Vector2(0, 152))
 
-	var again := PixelButton.new("TRY AGAIN", 70, 18)
-	again.pressed.connect(_on_try_again)
-	_place(_game_over_box, again, Vector2(55, 168))
+	_try_again = PixelButton.new("", 74, 18)
+	_try_again.pressed.connect(_on_try_again)
+	_place(_game_over_box, _try_again, Vector2(53, 168))
 
-	_continue_button = PixelButton.new("WATCH AD TO CONTINUE", 128, 18, Palette.GOLD_DARK)
+	_continue_button = PixelButton.new("", 132, 18, Palette.GOLD_DARK)
 	_continue_button.pressed.connect(_on_continue)
-	_place(_game_over_box, _continue_button, Vector2(26, 194))
+	_place(_game_over_box, _continue_button, Vector2(24, 194))
+
+	# 2048 celebration
+	_win = Dim.new()
+	_win.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_win.visible = false
+	add_child(_win)
+
+	_win_box = Control.new()
+	_win_box.size = SCREEN
+	_win.add_child(_win_box)
+
+	var win_panel := Box.new()
+	win_panel.size = Vector2(140, 84)
+	_place(_win_box, win_panel, Vector2(20, 92))
+	_place(_win_box, _centered(I18n.t("win_title"), 3, Palette.GOLD, SCREEN.x, Palette.GOLD_DARK), Vector2(0, 102))
+	_win_text = _centered("", 1, Palette.LIGHT, SCREEN.x)
+	_place(_win_box, _win_text, Vector2(0, 132))
+	_keep_going = PixelButton.new("", 74, 18)
+	_keep_going.pressed.connect(func() -> void:
+		sfx.play("click")
+		_win.visible = false
+	)
+	_place(_win_box, _keep_going, Vector2(53, 150))
 
 	_ignore_mouse(self)
 
@@ -506,15 +675,17 @@ func _build_ui() -> void:
 			tutorial_seen = true
 			_save()
 	)
+	_tutorial.language_changed.connect(_on_language_changed)
 	add_child(_tutorial)
 
 
-func _make_score_box(at: Vector2, caption: String) -> Box:
+func _make_score_box(at: Vector2) -> Box:
 	var box := Box.new()
 	box.size = Vector2(46, 24)
 	_place(_shaker, box, at)
-	_place(box, _centered(caption, 1, Palette.DIM, box.size.x), Vector2(0, 3))
 
+	box.caption = _centered("", 1, Palette.DIM, box.size.x)
+	_place(box, box.caption, Vector2(0, 3))
 	box.value = _centered("0", 1, Palette.LIGHT, box.size.x)
 	_place(box, box.value, Vector2(0, 13))
 	return box
@@ -541,6 +712,7 @@ func _ignore_mouse(node: Node) -> void:
 
 # Panel background; turns red while Ares rages (for the score box).
 class Box extends Control:
+	var caption: PixelLabel
 	var value: PixelLabel
 	var hot := false
 
@@ -568,7 +740,7 @@ class HeldSlot extends Control:
 			PixelFont.draw_centered(self, "-", Rect2(Vector2.ZERO, size), 1, Palette.DIM)
 
 
-# Darkened scanline backdrop for the game over screen.
+# Darkened scanline backdrop for the game over and win screens.
 class Dim extends Control:
 	func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(Palette.INK, 0.6))
