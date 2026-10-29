@@ -124,9 +124,9 @@ func after_move() -> bool:
 
 
 # Anti-Zeus: halves a tile, preferring one that was about to merge.
-# The biggest tile on the board is spared.
+# The biggest tile on the board, and any finished 8192, is spared.
 func _halve() -> bool:
-	var tiles := board.tiles().filter(func(t: Tile) -> bool: return t.level >= 1)
+	var tiles := board.tiles().filter(func(t: Tile) -> bool: return t.level >= 1 and t.level < Board.MAX_LEVEL)
 	if tiles.size() < 2:
 		return false
 	tiles.sort_custom(func(a: Tile, b: Tile) -> bool: return a.level > b.level)
@@ -157,7 +157,7 @@ func _halve() -> bool:
 # Anti-Eros: up to three tiles break into two halves; a potion is stolen.
 func _split() -> bool:
 	var candidates := board.tiles().filter(func(t: Tile) -> bool:
-		return t.level >= 1 and _free_neighbor(t.grid_pos) != Vector2i(-1, -1))
+		return t.level >= 1 and t.level < Board.MAX_LEVEL and _free_neighbor(t.grid_pos) != Vector2i(-1, -1))
 	if candidates.is_empty():
 		return false
 	candidates.shuffle()

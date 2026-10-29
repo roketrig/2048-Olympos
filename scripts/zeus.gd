@@ -12,6 +12,10 @@ extends God
 @export_range(0.0, 1.0) var chain_chance := 0.2 # share of strikes that chain
 @export var chain_length := Vector2i(3, 5)
 @export var rescues_per_game := 1 # strikes that save the player when no move is left
+# Each level up makes a tile this much less likely to be struck: a 2 is always a
+# candidate, a 64 about 20 times less, a 1024 about 200 times less.
+@export_range(0.0, 1.0) var big_tile_falloff := 0.55
+@export var helpful_bonus := 4.0 # weight boost for strikes that open a merge
 
 const SPRITE: Array[String] = [
 	"....g.G.GGGG.G.g....",
@@ -138,34 +142,49 @@ func revive() -> void:
 	await wait(0.4)
 
 
-# Prefers tiles that will match a neighbor after the strike, so the strike
-# opens up a merge. Otherwise picks one of the smaller tiles on the board.
+# Small tiles are far more likely to be struck than big ones. Tiles that will
+# match a neighbor after the strike get a boost, so strikes tend to open merges.
 func _pick_target(steps: int, helpful_only: bool) -> Tile:
-	var helpful: Array[Tile] = []
-	var others: Array[Tile] = []
+	var pool: Array[Tile] = []
+	var weights: Array[float] = []
 
 	for tile in board.tiles():
 		var new_level := tile.level + steps
 		if new_level > Board.MAX_LEVEL:
 			continue
 
+		var weight := strike_weight(tile.level)
 		if board.neighbors(tile.grid_pos).any(func(n: Tile) -> bool: return n.level == new_level):
-			helpful.append(tile)
-		else:
-			others.append(tile)
+			weight *= helpful_bonus
+		elif helpful_only:
+			continue
+		pool.append(tile)
+		weights.append(weight)
 
-	if not helpful.is_empty():
-		return helpful.pick_random()
-	if helpful_only or others.is_empty():
-		return null
-
-	others.sort_custom(func(a: Tile, b: Tile) -> bool: return a.level < b.level)
-	return others[randi() % ceili(others.size() / 2.0)]
+	return _weighted_pick(pool, weights)
 
 
-# Random start, then always hops to the nearest tile not hit yet.
+func strike_weight(level: int) -> float:
+	return pow(big_tile_falloff, level)
+
+
+func _weighted_pick(pool: Array[Tile], weights: Array[float]) -> Tile:
+	var total := 0.0
+	for w in weights:
+		total += w
+	var roll := randf() * total
+	for i in pool.size():
+		roll -= weights[i]
+		if roll < 0.0:
+			return pool[i]
+	return pool.back() if not pool.is_empty() else null
+
+
+# Random start, then always hops to the nearest tile not hit yet. Each tile
+# joins the pool with its strike weight, so big tiles are rarely in a chain.
 func _pick_chain() -> Array[Tile]:
-	var pool := board.tiles().filter(func(t: Tile) -> bool: return t.level < Board.MAX_LEVEL)
+	var pool := board.tiles().filter(func(t: Tile) -> bool:
+		return t.level < Board.MAX_LEVEL and randf() < strike_weight(t.level))
 	var chain: Array[Tile] = []
 	if pool.is_empty():
 		return chain

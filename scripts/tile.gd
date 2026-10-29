@@ -72,6 +72,10 @@ static func draw_face(canvas: CanvasItem, rect: Rect2, tile_level: int) -> void:
 	canvas.draw_rect(Rect2(p + Vector2(1, 1), Vector2(s.x - 2, 1)), face.lightened(0.4))
 	canvas.draw_rect(Rect2(p + Vector2(1, 2), Vector2(1, s.y - 5)), face.lightened(0.2))
 
+	# the final tile (8192) can't grow or merge any more: a gold frame marks it
+	if tile_level >= Board.MAX_LEVEL:
+		canvas.draw_rect(Rect2(p, Vector2(s.x, s.y - 2)), Palette.GOLD, false, 1.0)
+
 	var text := str(value_of(tile_level))
 	var px := 1
 	if s.x >= 30:

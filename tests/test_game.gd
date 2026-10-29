@@ -112,6 +112,7 @@ func _run() -> void:
 	zeus.chain_chance = 1.0
 	zeus.cooldown_moves = 0
 	zeus.chain_length = Vector2i(4, 4)
+	zeus.big_tile_falloff = 1.0 # every tile may join the chain
 	var levels_before := {}
 	for t in board.tiles():
 		levels_before[t] = t.level
@@ -124,6 +125,26 @@ func _run() -> void:
 		if diff == 1: raised += 1
 		elif diff != 0: bad += 1
 	_check(raised == 4 and bad == 0, "chain doubled exactly 4 tiles once each (raised %d, bad %d)" % [raised, bad])
+	zeus.big_tile_falloff = 0.55
+
+	# Zeus rarely strikes big tiles
+	_fill([[0, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, 9]])
+	var big_hits := 0
+	for i in 500:
+		if zeus._pick_target(1, false).level == 9:
+			big_hits += 1
+	_check(big_hits < 15, "Zeus picks a 1024 over a 2 rarely (%d / 500)" % big_hits)
+
+	# 8192 is the last tile: it never merges and Zeus never strikes it
+	_fill([[12, 12, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]])
+	board.move(Vector2i.LEFT)
+	_check(board.tiles().size() == 2 and board.tiles().all(func(t: Tile) -> bool: return t.level == 12), "two 8192s don't merge")
+	_check(zeus._pick_target(1, false) == null and zeus._pick_chain().is_empty(), "Zeus never strikes a 8192")
+	_fill([[12, 0, 12, 0], [0, 12, 0, 12], [12, 0, 12, 0], [0, 12, 0, 12]])
+	_check(not board.can_move(), "a board of 8192s and 2s with no pairs is stuck")
+	_fill([[12, 12, 3, 5], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]])
+	await main.chaos._halve()
+	_check(board.tile_at(Vector2i(0, 0)).level == 12 and board.tile_at(Vector2i(1, 0)).level == 12 and board.tile_at(Vector2i(2, 0)).level == 2, "Chaos spares 8192s")
 
 	# Eros merges every equal pair at once
 	main.score = 0

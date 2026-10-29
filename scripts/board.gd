@@ -7,7 +7,7 @@ signal merged(tile: Tile)
 const SIZE := 4
 const GAP := 4.0
 const MOVE_TIME := 0.1
-const MAX_LEVEL := 16 # 131072
+const MAX_LEVEL := 12 # 8192: the last tile, it never merges or grows
 
 var cell_size := 0.0
 var cells: Array = [] # cells[y][x] -> Tile or null

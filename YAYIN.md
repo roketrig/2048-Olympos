@@ -29,10 +29,12 @@ _Son güncelleme: 29 Ekim 2026_
   - Kaos tanrıların tersini yapıyor, ama daha düşük ihtimalle: taşı yarılıyor (Zeus'un tersi), taşları ikiye bölüp iksir çalıyor (Eros'un tersi), tahtaya 2'ler döküp vuruşları yarıya indiriyor (Ares'in tersi).
   - Kaos yenilince tanrılar geri dönüyor ve +2048 bonus geliyor.
 - [x] Tanrıların olasılıkları test geri bildirimine göre yaklaşık %15-20 düşürüldü (Zeus 0.10, Eros 0.065, Ares 0.055).
+- [x] **Son taş 8192.** 8192 artık birleşmez, Zeus çarpmaz, Kaos dokunmaz; altın çerçeveyle işaretli. Değiştirmek için `board.gd` içindeki `MAX_LEVEL` (12 = 8192, 13 = 16384).
+- [x] Zeus büyük taşları çok daha nadir vuruyor: her seviye ihtimali 0.55 ile çarpılıyor (64 ≈ 20 kat, 1024 ≈ 200 kat daha az).
 - [x] Android geri tuşu: önce açık pencereyi kapatır, en son oyundan çıkar.
 - [x] Kaldığın yerden devam: Uygulama kapansa da tahta, skor, iksirler ve Ares'in öfkesi kaydediliyor.
 - [x] Büyük anlarda kısa titreşim (Zeus, Ares, kazanma, oyun sonu). Ses butonu titreşimi de kapatıyor.
-- [x] Otomatik testler repoda (`tests/test_game.gd`, 66 kontrol). Testler export'a dahil edilmiyor.
+- [x] Otomatik testler repoda (`tests/test_game.gd`, 71 kontrol). Testler export'a dahil edilmiyor.
 - [x] Gizlilik politikası yayında: https://roketrig.github.io/2048-olympos/privacy
 - [x] Geliştirici sitesi: https://roketrig.github.io
 
@@ -47,7 +49,7 @@ _Son güncelleme: 29 Ekim 2026_
   - Yazıların okunurluğu
   - Rehberin anlaşılır olup olmadığı
 - [ ] **Oran ayarı.** Testten gelen geri bildirime göre olasılıkları ayarlayın:
-  - `zeus.gd`: `strike_chance` 0.10, `chain_chance` 0.2
+  - `zeus.gd`: `strike_chance` 0.10, `chain_chance` 0.2, `big_tile_falloff` 0.55 (küçüldükçe büyük taşlar daha az vurulur)
   - `eros.gd`: `merge_chance` 0.065, `potion_chance` 0.06
   - `ares.gd`: `scream_chance` 0.055
   - `chaos.gd`: `max_hp` 3000, `halve_chance` 0.06, `split_chance` 0.045, `flood_chance` 0.04
