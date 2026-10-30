@@ -25,7 +25,9 @@ $env:GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD = [Runtime.InteropServices.Marshal]
 try {
 	if (Test-Path $output) { Remove-Item $output }
 	Write-Host "Building release AAB, this takes a few minutes..."
-	& $godot --headless --path $project --export-release "Android" $output
+	# Godot is a GUI program on Windows: without -Wait PowerShell would not wait for it
+	$arguments = @("--headless", "--path", "`"$project`"", "--export-release", "Android", "`"$output`"")
+	Start-Process -FilePath $godot -ArgumentList $arguments -NoNewWindow -Wait
 } finally {
 	Remove-Item Env:GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD -ErrorAction SilentlyContinue
 	[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)

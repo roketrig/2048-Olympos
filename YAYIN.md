@@ -70,7 +70,7 @@ _Son güncelleme: 29 Ekim 2026_
   ```
   Sorular: şifre (iki kez, yazarken görünmez), ad soyad, birim/kurum (boş geçilebilir), şehir, il, ülke kodu `TR`, en sonda onay için `yes`.
 - [ ] Keystore dosyasının ve şifresinin **yedeğini** güvenli bir yere alın, örneğin bir şifre yöneticisine. Kaybederseniz güncelleme yükleyemezsiniz.
-- [ ] **Release AAB'yi alın.** Şifre hiçbir yere kaydedilmez; betik sorar, build bitince unutur. Terminalde:
+- [x] **Release AAB'yi alın.** Şifre hiçbir yere kaydedilmez; betik sorar, build bitince unutur. Terminalde:
   ```powershell
   powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\OneDrive\Masaüstü\godot\tools\release.ps1"
   ```
