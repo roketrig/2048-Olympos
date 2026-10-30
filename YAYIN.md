@@ -64,13 +64,17 @@ _Son güncelleme: 29 Ekim 2026_
 
 ## 2. Release imza anahtarı (keystore)
 
-- [ ] Keystore'u oluşturun. Android Studio'yu açmanıza gerek yok; içindeki `keytool` aracını terminalden çalıştırıyoruz. Şifreyi kendiniz belirleyin, hiçbir yere yazmayın, repoya da koymayın. PowerShell'de:
+- [x] Keystore'u oluşturun. Android Studio'yu açmanıza gerek yok; içindeki `keytool` aracını terminalden çalıştırıyoruz. Şifreyi kendiniz belirleyin, hiçbir yere yazmayın, repoya da koymayın. PowerShell'de:
   ```powershell
   & "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v -keystore "$env:USERPROFILE\olympos2048-release.keystore" -alias olympos2048 -keyalg RSA -keysize 2048 -validity 10000
   ```
   Sorular: şifre (iki kez, yazarken görünmez), ad soyad, birim/kurum (boş geçilebilir), şehir, il, ülke kodu `TR`, en sonda onay için `yes`.
 - [ ] Keystore dosyasının ve şifresinin **yedeğini** güvenli bir yere alın, örneğin bir şifre yöneticisine. Kaybederseniz güncelleme yükleyemezsiniz.
-- [ ] Release build almadan önce şu ortam değişkenlerini ayarlayın: `GODOT_ANDROID_KEYSTORE_RELEASE_PATH`, `GODOT_ANDROID_KEYSTORE_RELEASE_USER` (değeri `olympos2048`) ve `GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD`.
+- [ ] **Release AAB'yi alın.** Şifre hiçbir yere kaydedilmez; betik sorar, build bitince unutur. Terminalde:
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\OneDrive\Masaüstü\godot	oolselease.ps1"
+  ```
+  Sonunda yeşil `DONE` yazısı ve `Masaüstüuildndroid8-olympos.aab` dosyası çıkar. Play Console'a yüklenecek dosya budur.
 - [ ] Play Console'da **Play App Signing**'i açık bırakın (varsayılan). Bu durumda sizin anahtarınız "yükleme anahtarı" olur; kaybederseniz Google üzerinden sıfırlanabilir.
 
 ## 3. AdMob
