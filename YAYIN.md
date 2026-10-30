@@ -66,7 +66,7 @@ _Son güncelleme: 29 Ekim 2026_
 
 - [ ] Keystore'u oluşturun. Android Studio'yu açmanıza gerek yok; içindeki `keytool` aracını terminalden çalıştırıyoruz. Şifreyi kendiniz belirleyin, hiçbir yere yazmayın, repoya da koymayın. PowerShell'de:
   ```powershell
-  & "C:\Program Files\Android\Android Studio\jbrin\keytool.exe" -genkeypair -v -keystore "$env:USERPROFILE\olympos2048-release.keystore" -alias olympos2048 -keyalg RSA -keysize 2048 -validity 10000
+  & "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v -keystore "$env:USERPROFILE\olympos2048-release.keystore" -alias olympos2048 -keyalg RSA -keysize 2048 -validity 10000
   ```
   Sorular: şifre (iki kez, yazarken görünmez), ad soyad, birim/kurum (boş geçilebilir), şehir, il, ülke kodu `TR`, en sonda onay için `yes`.
 - [ ] Keystore dosyasının ve şifresinin **yedeğini** güvenli bir yere alın, örneğin bir şifre yöneticisine. Kaybederseniz güncelleme yükleyemezsiniz.
