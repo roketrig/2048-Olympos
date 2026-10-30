@@ -105,7 +105,7 @@ _Son güncelleme: 29 Ekim 2026_
 
 ## 6. Google Play
 
-- [ ] Play Console'da kimlik doğrulamasını tamamlayın.
+- [x] Play Console'da kimlik doğrulamasını tamamlayın.
 - [ ] Uygulamayı oluşturun. Paket adı `com.bugrakasarci.olympos2048`; yayından sonra değiştirilemez.
 - [ ] **Mağaza sayfası** için gerekenler:
   - **Ad:** 2048 Olympos
@@ -129,7 +129,7 @@ _Son güncelleme: 29 Ekim 2026_
 ## 7. iOS / App Store _(Android yayına çıktıktan sonra)_
 
 - [ ] Mac ve Xcode hazırlayın.
-- [ ] Apple Developer Program'a kaydolun (yılda 99$, bireysel hesap).
+- [x] Apple Developer Program'a kaydolun (yılda 99$, bireysel hesap).
 - [ ] Mac'teki Godot'ya tam export şablonlarını indirin.
 - [ ] `export_presets.cfg` dosyasına `app_store_team_id` değerini girin.
 - [ ] Xcode projesini export edin, imzalayın ve TestFlight'a yükleyin.
