@@ -72,9 +72,10 @@ _Son güncelleme: 29 Ekim 2026_
 - [ ] Keystore dosyasının ve şifresinin **yedeğini** güvenli bir yere alın, örneğin bir şifre yöneticisine. Kaybederseniz güncelleme yükleyemezsiniz.
 - [ ] **Release AAB'yi alın.** Şifre hiçbir yere kaydedilmez; betik sorar, build bitince unutur. Terminalde:
   ```powershell
-  powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\OneDrive\Masaüstü\godot	oolselease.ps1"
+  powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\OneDrive\Masaüstü\godot	ools
+  powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\OneDrive\Masaüstü\godot\tools\release.ps1"
   ```
-  Sonunda yeşil `DONE` yazısı ve `Masaüstüuildndroid8-olympos.aab` dosyası çıkar. Play Console'a yüklenecek dosya budur.
+  Sonunda yeşil `DONE` yazısı ve `Masaüstü\build\android\2048-olympos.aab` dosyası çıkar. Play Console'a yüklenecek dosya budur.
 - [ ] Play Console'da **Play App Signing**'i açık bırakın (varsayılan). Bu durumda sizin anahtarınız "yükleme anahtarı" olur; kaybederseniz Google üzerinden sıfırlanabilir.
 
 ## 3. AdMob
