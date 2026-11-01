@@ -39,7 +39,7 @@ _Son güncelleme: 29 Ekim 2026_
 - [x] Android geri tuşu: önce açık pencereyi kapatır, en son oyundan çıkar.
 - [x] Kaldığın yerden devam: Uygulama kapansa da tahta, skor, iksirler ve Ares'in öfkesi kaydediliyor.
 - [x] Büyük anlarda kısa titreşim (Zeus, Ares, kazanma, oyun sonu). Ses butonu titreşimi de kapatıyor.
-- [x] Otomatik testler repoda (`tests/test_game.gd`, 91 kontrol). Testler export'a dahil edilmiyor.
+- [x] Otomatik testler repoda (`tests/test_game.gd`, 98 kontrol). Testler export'a dahil edilmiyor.
 - [x] Gizlilik politikası yayında: https://roketrig.github.io/2048-olympos/privacy
 - [x] Geliştirici sitesi: https://roketrig.github.io
 

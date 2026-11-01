@@ -133,12 +133,15 @@ func revive() -> void:
 	victims.sort_custom(func(a: Tile, b: Tile) -> bool: return a.level < b.level)
 	var from := portrait_point()
 	for tile in victims.slice(0, 3):
+		if not is_instance_valid(tile):
+			continue
 		var to := tile_point(tile)
 		spawn_bolt(from, to)
 		sfx.play("zap")
 		await wait(0.09)
 		Fx.sparks(effects, to, Palette.GOLD, 10, 18.0)
-		board.remove_tile(tile)
+		if is_instance_valid(tile): # the board may have changed during the wait
+			board.remove_tile(tile)
 		from = to
 	await wait(0.4)
 
@@ -244,7 +247,8 @@ func _chain_strike(chain: Array[Tile]) -> void:
 		sfx.play("zap", 1.0 + i * 0.15)
 		await wait(0.09)
 
-		board.upgrade(tile, 1)
+		if is_instance_valid(tile): # the board may have changed during the wait
+			board.upgrade(tile, 1)
 		Fx.sparks(effects, to, Palette.GOLD, 10, 18.0)
 		float_text("x2", to, 2, Palette.GOLD)
 		from = to

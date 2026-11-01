@@ -275,8 +275,9 @@ func _run() -> void:
 
 	I18n.lang = "tr"
 	main._apply_texts()
-	_check(main._new_button.text == "YENİ OYUN" and main._score_box.caption.text == "SKOR", "Turkish UI texts")
-	for button in [main._new_button, main._try_again, main._continue_button]:
+	_check(main._confirm_title.text == "YENİ OYUN?" and main._score_box.caption.text == "SKOR", "Turkish UI texts")
+	_check(PixelFont.measure(main._confirm_line.text, 1).x <= 140, "Turkish confirm line fits")
+	for button in [main._confirm_yes, main._confirm_no, main._try_again, main._continue_button]:
 		_check(PixelFont.measure(button.text, 1).x <= button.size.x - 4, "Turkish button text fits: %s" % button.text)
 	for key in ["fight", "continue"]:
 		_check(PixelFont.measure(I18n.t(key), 1).x <= main._card_button.size.x - 4, "Turkish card button fits: %s" % I18n.t(key))
@@ -499,6 +500,26 @@ func _run() -> void:
 	for god in main.gods:
 		god._moves_since_action = 0
 	main.new_game()
+
+	# new game asks first when there is progress to lose
+	main.new_game()
+	main._on_new_pressed()
+	_check(not main._confirm.visible, "a fresh game restarts without asking")
+	_fill([[3, 4, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]])
+	main.score = 500
+	main._on_new_pressed()
+	_check(main._confirm.visible and main.score == 500 and board.tiles().size() == 2, "mid-game restart asks first")
+	main.try_move(Vector2i.RIGHT)
+	_check(board.tile_at(Vector2i(0, 0)) != null, "no swipes while the question is up")
+	if shot_path != "":
+		await create_timer(0.2).timeout
+		await RenderingServer.frame_post_draw
+		_save(shot_path.replace(".png", "_confirm.png"))
+	main._on_back()
+	_check(not main._confirm.visible and main.score == 500, "back (or NO) keeps the game")
+	main._on_new_pressed()
+	main._confirm_yes.pressed.emit()
+	_check(not main._confirm.visible and main.score == 0 and board.tiles().size() == 2, "YES starts a new game")
 
 	# love potion: lift a tile and drop it elsewhere
 	_fill([[3, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, 0]])

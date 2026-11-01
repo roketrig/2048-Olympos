@@ -11,6 +11,7 @@ const BOSS_LEVEL := 10 # the first 2048 tile wakes Chaos
 const TROPHIES: Array[String] = ["chain", "love", "roar", "herald", "chaos", "tile"]
 const TROPHY_TIME := 2.5 # seconds the "trophy" line stays under the board
 const TROPHY_ICON: Array[String] = ["#.###.#", "#.###.#", ".#####.", "..###..", "...#...", "..###.."]
+const RESTART_ICON: Array[String] = ["..###.#", ".#...##", "#...###", "#......", "#.....#", ".#...#.", "..###.."]
 const HEART_ICON: Array[String] = [".##.##.", "#######", "#######", ".#####.", "..###..", "...#..."]
 const SOUND_ON_ICON: Array[String] = ["..#....", ".##..#.", "###...#", "###...#", "###...#", ".##..#.", "..#...."]
 const SOUND_OFF_ICON: Array[String] = ["..#....", ".##....", "###.#.#", "###..#.", "###.#.#", ".##....", "..#...."]
@@ -67,6 +68,13 @@ var _hp_label: PixelLabel
 var _potion_button: PixelButton
 var _held_slot: HeldSlot
 var _new_button: PixelButton
+var _trophy_button: PixelButton
+var _confirm: Control
+var _confirm_box: Control
+var _confirm_title: PixelLabel
+var _confirm_line: PixelLabel
+var _confirm_yes: PixelButton
+var _confirm_no: PixelButton
 var _sound_button: PixelButton
 var _hint: PixelLabel
 var _game_over: Control
@@ -125,6 +133,7 @@ func new_game() -> void:
 	_game_over.visible = false
 	_game_over.modulate.a = 0.0
 	_card.visible = false
+	_confirm.visible = false
 
 	for god in gods:
 		god.reset()
@@ -145,7 +154,7 @@ func new_game() -> void:
 
 
 func try_move(dir: Vector2i) -> void:
-	if busy or over:
+	if busy or over or _confirm.visible:
 		return
 	picking = false
 	offering = false
@@ -386,7 +395,7 @@ func _steal_potion() -> bool:
 # --- taps and input -----------------------------------------------------------
 
 func _on_tap(at: Vector2) -> void:
-	if over or _card.visible:
+	if over or _card.visible or _confirm.visible:
 		return
 
 	# tapping a god (or Chaos) explains what it does
@@ -470,7 +479,7 @@ func _can_offer_potion_ad() -> bool:
 
 
 func _input(event: InputEvent) -> void:
-	if _tutorial.visible or ads.is_showing() or _card.visible:
+	if _tutorial.visible or ads.is_showing() or _card.visible or _confirm.visible:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
@@ -514,6 +523,8 @@ func _on_back() -> void:
 		_tutorial._close_credits()
 	elif _tutorial.visible:
 		_tutorial.close()
+	elif _confirm.visible:
+		_close_confirm()
 	elif _card.visible:
 		_card_button.pressed.emit()
 	elif picking or offering:
@@ -554,6 +565,9 @@ func _refresh_ui() -> void:
 	_potion_button.highlighted = picking or offering
 	_potion_button.queue_redraw()
 
+	_trophy_button.text = "%d/%d" % [trophies.size(), TROPHIES.size()]
+	_trophy_button.queue_redraw()
+
 	_held_slot.level = held_level
 	_held_slot.waiting = picking
 	_held_slot.queue_redraw()
@@ -591,7 +605,10 @@ func _refresh_ui() -> void:
 func _apply_texts() -> void:
 	_score_box.caption.text = I18n.t("score")
 	_best_box.caption.text = I18n.t("best")
-	_new_button.text = I18n.t("new_game")
+	_confirm_title.text = I18n.t("confirm_question")
+	_confirm_line.text = I18n.t("confirm_line")
+	_confirm_yes.text = I18n.t("yes")
+	_confirm_no.text = I18n.t("no")
 	_game_over_title.text = I18n.t("game_over")
 	_final_score.text = I18n.t("score_n") % score
 	_try_again.text = I18n.t("try_again")
@@ -626,6 +643,22 @@ func _show_game_over() -> void:
 
 # Interstitials only ever show here, on the way into a new game, and only as
 # often as the caps in Ads allow.
+# The restart button: asks first when there is progress to lose.
+func _on_new_pressed() -> void:
+	if busy:
+		return
+	sfx.play("click")
+	if over or score == 0:
+		new_game()
+		return
+	_confirm.visible = true
+
+
+func _close_confirm() -> void:
+	sfx.play("click")
+	_confirm.visible = false
+
+
 func _on_try_again() -> void:
 	if busy:
 		return
@@ -786,7 +819,7 @@ func _layout() -> void:
 	if window_scale * fit >= 3.0:
 		fit = floorf(window_scale * fit) / window_scale
 	var origin := ((area.position + (area.size - SCREEN * fit) / 2.0) * window_scale).floor() / window_scale
-	for box in [_screen, _game_over_box, _card_box, _tutorial.box]:
+	for box in [_screen, _game_over_box, _card_box, _confirm_box, _tutorial.box]:
 		box.scale = Vector2(fit, fit)
 		box.position = origin
 
@@ -813,14 +846,12 @@ func _build_ui() -> void:
 		_tutorial.open()
 	)
 	_place(_shaker, help, Vector2(53, 29))
-	var trophy := PixelButton.new("", 13, 12, Palette.CELL.lightened(0.15))
-	trophy.icon = TROPHY_ICON
-	trophy.icon_color = Palette.GOLD
-	trophy.pressed.connect(func() -> void:
-		sfx.play("click")
-		_tutorial.open_custom(_trophy_page())
-	)
-	_place(_shaker, trophy, Vector2(67, 29))
+	# up here, away from the thumbs, so a swipe can't restart the game
+	_new_button = PixelButton.new("", 13, 12, Palette.CELL.lightened(0.15))
+	_new_button.icon = RESTART_ICON
+	_new_button.icon_color = Palette.LIGHT
+	_new_button.pressed.connect(_on_new_pressed)
+	_place(_shaker, _new_button, Vector2(67, 29))
 	_score_box = _make_score_box(Vector2(80, 6))
 	_score_label = _score_box.value
 	_best_box = _make_score_box(Vector2(128, 6))
@@ -874,12 +905,14 @@ func _build_ui() -> void:
 	_held_slot.size = Vector2(32, 20)
 	_place(_shaker, _held_slot, Vector2(40, 278))
 
-	_new_button = PixelButton.new("", 74, 20)
-	_new_button.pressed.connect(func() -> void:
+	_trophy_button = PixelButton.new("", 74, 20, Palette.CELL.lightened(0.15))
+	_trophy_button.icon = TROPHY_ICON
+	_trophy_button.icon_color = Palette.GOLD
+	_trophy_button.pressed.connect(func() -> void:
 		sfx.play("click")
-		new_game()
+		_tutorial.open_custom(_trophy_page())
 	)
-	_place(_shaker, _new_button, Vector2(74, 278))
+	_place(_shaker, _trophy_button, Vector2(74, 278))
 
 	_sound_button = PixelButton.new("", 24, 20, Palette.CELL.lightened(0.15))
 	_sound_button.icon = SOUND_ON_ICON if sound_on else SOUND_OFF_ICON
@@ -954,6 +987,34 @@ func _build_ui() -> void:
 		_card_lines.append(line)
 	_card_button = PixelButton.new("", 74, 18)
 	_place(_card_box, _card_button, Vector2(53, 174))
+
+	# "new game?" confirmation
+	_confirm = Dim.new()
+	_confirm.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_confirm.visible = false
+	add_child(_confirm)
+
+	_confirm_box = Control.new()
+	_confirm_box.size = SCREEN
+	_confirm.add_child(_confirm_box)
+
+	var confirm_panel := Box.new()
+	confirm_panel.size = Vector2(148, 76)
+	_place(_confirm_box, confirm_panel, Vector2(16, 120))
+	_confirm_title = _centered("", 2, Palette.GOLD, SCREEN.x, Palette.INK)
+	_place(_confirm_box, _confirm_title, Vector2(0, 130))
+	_confirm_line = _centered("", 1, Palette.LIGHT, SCREEN.x)
+	_place(_confirm_box, _confirm_line, Vector2(0, 152))
+	_confirm_no = PixelButton.new("", 60, 18)
+	_confirm_no.pressed.connect(_close_confirm)
+	_place(_confirm_box, _confirm_no, Vector2(26, 168))
+	_confirm_yes = PixelButton.new("", 60, 18, Ares.RED.darkened(0.3))
+	_confirm_yes.pressed.connect(func() -> void:
+		_confirm.visible = false
+		sfx.play("click")
+		new_game()
+	)
+	_place(_confirm_box, _confirm_yes, Vector2(94, 168))
 
 	_ignore_mouse(self)
 

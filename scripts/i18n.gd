@@ -13,7 +13,10 @@ const STRINGS := {
 	"en": {
 		"score": "SCORE",
 		"best": "BEST",
-		"new_game": "NEW GAME",
+		"confirm_question": "NEW GAME?",
+		"confirm_line": "THIS GAME WILL BE LOST.",
+		"yes": "YES",
+		"no": "NO",
 		"game_over": "GAME OVER",
 		"score_n": "SCORE %d",
 		"try_again": "TRY AGAIN",
@@ -88,7 +91,10 @@ const STRINGS := {
 	"tr": {
 		"score": "SKOR",
 		"best": "EN İYİ",
-		"new_game": "YENİ OYUN",
+		"confirm_question": "YENİ OYUN?",
+		"confirm_line": "BU OYUN KAYBOLACAK.",
+		"yes": "EVET",
+		"no": "HAYIR",
 		"game_over": "OYUN BİTTİ",
 		"score_n": "SKOR %d",
 		"try_again": "TEKRAR DENE",
