@@ -79,7 +79,7 @@ _Son güncelleme: 29 Ekim 2026_
 
 ## 3. AdMob
 
-- [ ] AdMob hesabı açın (Play Console ile aynı Google hesabı olabilir).
+- [x] AdMob hesabı açın (Play Console ile aynı Google hesabı olabilir).
 - [ ] **Ödeme ve vergi bilgileri:** Banka hesabınızı ve W-8BEN formunu (ABD dışındaki bireyler için) girin.
 - [ ] İki uygulama ekleyin: 2048 Olympos (Android) ve 2048 Olympos (iOS).
 - [ ] Her biri için üç reklam birimi oluşturun:
