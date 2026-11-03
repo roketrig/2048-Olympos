@@ -7,7 +7,9 @@ Oyundaki bütün reklamlar `scripts/ads.gd` içindeki `Ads` katmanından geçer.
 - AdMob eklentisi **henüz kurulu değil**.
 - Debug build'lerde reklamların yerinde açıkça **"TEST AD"** yazan yer tutucular görünür. Bunlar banner kutuları ile tam ekran interstitial ve ödüllü reklam ekranlarıdır. Amaçları düzeni ve akışları masaüstünde denemektir.
 - Release build'de eklenti yoksa hiç reklam gösterilmez. Oyun reklamsız da sorunsuz çalışır.
-- `Ads.IDS` içinde Google'ın herkese açık **test** ID'leri var. Yayından önce kendi ID'lerinizle değiştirin.
+- Android için kendi AdMob ID'lerimiz `Ads.LIVE_IDS` içinde. Bunları **sadece release build'ler** kullanır.
+- Debug build'ler (telefonda test ettiğiniz APK dahil) her zaman Google'ın herkese açık **test** ID'lerini (`Ads.TEST_IDS`) kullanır. Böylece test sırasında kendi canlı reklamınız hiç görünmez, yanlışlıkla tıklanamaz.
+- iOS uygulaması AdMob'a eklenince iOS ID'leri de `Ads.LIVE_IDS` içine eklenecek; o zamana kadar iOS test ID'lerinde kalır.
 
 ## Yerleşim ve kurallar (koda işlendi)
 

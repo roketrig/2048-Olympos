@@ -81,8 +81,8 @@ _Son güncelleme: 29 Ekim 2026_
 
 - [x] AdMob hesabı açın (Play Console ile aynı Google hesabı olabilir).
 - [ ] **Ödeme ve vergi bilgileri:** Banka hesabınızı ve W-8BEN formunu (ABD dışındaki bireyler için) girin.
-- [ ] İki uygulama ekleyin: 2048 Olympos (Android) ve 2048 Olympos (iOS).
-- [ ] Her biri için üç reklam birimi oluşturun:
+- [x] Android uygulamasını ekleyin (2048 Olympos). iOS uygulaması Mac aşamasında eklenecek.
+- [x] Android için üç reklam birimi oluşturun (iOS için Mac aşamasında):
   - **Anchored adaptive banner**
   - **Interstitial**
   - **Rewarded**
@@ -97,7 +97,8 @@ _Son güncelleme: 29 Ekim 2026_
 - [ ] Godot 4.7 uyumlu bir AdMob eklentisi kurun (ayrıntılar `ADS.md` içinde).
 - [ ] `scripts/admob_backend.gd` dosyasını yazıp `ads.gd` içindeki `_find_backend()` fonksiyonuna bağlayın.
 - [ ] Test ID'lerini kendi ID'lerinizle değiştirin:
-  - `Ads.IDS`
+  - [x] Android: `Ads.LIVE_IDS` (sadece release build kullanır; debug build hep test reklamı gösterir)
+  - [ ] iOS: `Ads.LIVE_IDS` içine iOS ID'leri
   - iOS için `export_presets.cfg` içindeki `GADApplicationIdentifier`
   - Android uygulama ID'si (eklenti ayarlarında)
 - [ ] iOS için Google'ın güncel SKAdNetwork listesini `export_presets.cfg` dosyasına ekleyin.

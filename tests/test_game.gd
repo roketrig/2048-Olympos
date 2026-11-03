@@ -221,6 +221,10 @@ func _run() -> void:
 		_save(shot_path.replace(".png", "_over_ads.png"))
 	main.new_game()
 
+	# debug builds (like this test run) must never use the live ad ids
+	_check(Ads.ids()["banner"].begins_with("ca-app-pub-3940256099942544/"), "debug builds use Google's test ads")
+	_check(Ads.LIVE_IDS["Android"]["app"].contains("~") and Ads.LIVE_IDS["Android"]["rewarded"].contains("/"), "live ids are well formed")
+
 	# rewarded potion needs two taps
 	main._on_potion_pressed()
 	_check(main.offering and not ads.is_showing(), "first tap only offers the ad")

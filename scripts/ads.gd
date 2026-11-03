@@ -8,9 +8,20 @@ extends CanvasLayer
 
 signal layout_changed
 
-# Google's public TEST ids. Replace them with your own before release (ADS.md);
-# never click your own live ads.
-const IDS := {
+# Our own AdMob ids, used only by release builds. iOS gets its own once the
+# iOS app is added in AdMob; until then it stays on the test ids.
+const LIVE_IDS := {
+	"Android": {
+		"app": "ca-app-pub-4654610080349112~9560893224",
+		"banner": "ca-app-pub-4654610080349112/7740545092",
+		"interstitial": "ca-app-pub-4654610080349112/5992796266",
+		"rewarded": "ca-app-pub-4654610080349112/1450916024",
+	},
+}
+
+# Google's public TEST ids, used by every debug build so testing on a phone can
+# never show (or click) our live ads.
+const TEST_IDS := {
 	"Android": {
 		"app": "ca-app-pub-3940256099942544~3347511713",
 		"banner": "ca-app-pub-3940256099942544/9214589741",
@@ -59,7 +70,7 @@ func _ready() -> void:
 	add_child(_mock_banners)
 
 	if _backend != null:
-		_backend.initialize(IDS.get(OS.get_name(), IDS["Android"]))
+		_backend.initialize(ids())
 	get_viewport().size_changed.connect(_sync_banners)
 	_sync_banners()
 
@@ -72,6 +83,13 @@ func _ready() -> void:
 # show_privacy_options(). See ADS.md.
 func _find_backend() -> Object:
 	return null
+
+
+static func ids() -> Dictionary:
+	var platform := OS.get_name()
+	if not OS.is_debug_build() and LIVE_IDS.has(platform):
+		return LIVE_IDS[platform]
+	return TEST_IDS.get(platform, TEST_IDS["Android"])
 
 
 func enabled() -> bool:
