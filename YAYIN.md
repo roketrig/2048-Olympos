@@ -60,7 +60,7 @@ _Son güncelleme: 29 Ekim 2026_
   - `chaos.gd`: `max_hp` 3000, `halve_chance` 0.06, `split_chance` 0.045, `flood_chance` 0.04, huy için `MOOD_BOOST` 1.8 / `MOOD_DAMPEN` 0.6
   - `herald.gd`: `max_hp` 500, `halve_chance` 0.05, `flood_chance` 0.04
 - [ ] **Boss savaşlarını deneyin.** Elçi'nin canının (500) ve Kaos'un canının (3000) savaşın ne kadar sürdüğüne uygun olup olmadığına bakın. Hızlı denemek için `main.gd` içindeki `BOSS_LEVEL` değerini geçici olarak 6 yapın; o zaman Kaos 128'de gelir (Elçi için `HERALD_LEVEL`; 5 yaparsanız 64'te gelir). Rehberleri yeniden görmek için uygulama verisini silin.
-- [ ] Mağaza ekran görüntüleri ve öne çıkan görsel (1024×500). _(Claude üretebilir.)_
+- [x] Mağaza ekran görüntüleri ve öne çıkan görsel (1024×500): `Masaüstü\build\store` içinde, TR ve EN. Metinler `STORE.md` içinde. Yeniden üretmek için: `Godot --path . -s tools/store_shots.gd`
 
 ## 2. Release imza anahtarı (keystore)
 
@@ -106,7 +106,7 @@ _Son güncelleme: 29 Ekim 2026_
 
 ## 5. app-ads.txt
 
-- [ ] AdMob'un verdiği satırı `roketrig.github.io` reposunun köküne `app-ads.txt` adıyla koyun. Bu tek dosya bütün oyunlarınızı kapsar.
+- [x] AdMob'un verdiği satırı `roketrig.github.io` reposunun köküne `app-ads.txt` adıyla koyun: https://roketrig.github.io/app-ads.txt. Bu tek dosya bütün oyunlarınızı kapsar.
 - [ ] Mağaza sayfalarında "Website" olarak `https://roketrig.github.io` yazın.
 
 ## 6. Google Play
@@ -115,11 +115,8 @@ _Son güncelleme: 29 Ekim 2026_
 - [ ] Uygulamayı oluşturun. Paket adı `com.bugrakasarci.olympos2048`; yayından sonra değiştirilemez.
 - [ ] **Mağaza sayfası** için gerekenler:
   - **Ad:** 2048 Olympos
-  - **Kısa açıklama:** en fazla 80 karakter
-  - **Uzun açıklama:** en fazla 4000 karakter
-  - **İkon:** 512×512 _(icon.png'den üretilebilir)_
-  - **Öne çıkan görsel:** 1024×500 _(Claude üretebilir)_
-  - **Ekran görüntüleri:** telefon için en az 2 adet
+  - **Kısa ve uzun açıklama:** hazır, `STORE.md` içinde (TR ve EN)
+  - **İkon (512×512), öne çıkan görsel (1024×500), 5 ekran görüntüsü:** hazır, `Masaüstü\build\store` içinde
 - [ ] **Uygulama içeriği** formları:
   - **Gizlilik politikası URL'si:** https://roketrig.github.io/2048-olympos/privacy
   - **Reklam içeriyor:** Evet
