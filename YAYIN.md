@@ -102,7 +102,7 @@ _Son güncelleme: 29 Ekim 2026_
   - iOS için `export_presets.cfg` içindeki `GADApplicationIdentifier`
   - [x] Android uygulama ID'si (`project.godot`, `admob/general/android/app_id`)
 - [ ] iOS için Google'ın güncel SKAdNetwork listesini `export_presets.cfg` dosyasına ekleyin.
-- [ ] Telefonda test edin: banner'lar, interstitial, ödüllü reklamlar ve onay formu.
+- [x] Telefonda test edin: banner'lar, interstitial ve ödüllü reklamlar çalışıyor (onay formu Türkiye'de çıkmaz, AB'de çıkar).
 
 ## 5. app-ads.txt
 
