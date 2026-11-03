@@ -4,12 +4,15 @@ Oyundaki bütün reklamlar `scripts/ads.gd` içindeki `Ads` katmanından geçer.
 
 ## Şu anki durum
 
-- AdMob eklentisi **henüz kurulu değil**.
-- Debug build'lerde reklamların yerinde açıkça **"TEST AD"** yazan yer tutucular görünür. Bunlar banner kutuları ile tam ekran interstitial ve ödüllü reklam ekranlarıdır. Amaçları düzeni ve akışları masaüstünde denemektir.
-- Release build'de eklenti yoksa hiç reklam gösterilmez. Oyun reklamsız da sorunsuz çalışır.
-- Android için kendi AdMob ID'lerimiz `Ads.LIVE_IDS` içinde. Bunları **sadece release build'ler** kullanır.
-- Debug build'ler (telefonda test ettiğiniz APK dahil) her zaman Google'ın herkese açık **test** ID'lerini (`Ads.TEST_IDS`) kullanır. Böylece test sırasında kendi canlı reklamınız hiç görünmez, yanlışlıkla tıklanamaz.
-- iOS uygulaması AdMob'a eklenince iOS ID'leri de `Ads.LIVE_IDS` içine eklenecek; o zamana kadar iOS test ID'lerinde kalır.
+- **AdMob eklentisi kurulu:** Poing Studios godot-admob-plugin v5.1.0 (MIT), `addons/admob`. Android ve iOS reklam paketleri `addons/admob/*/bin` içinde, repoya dahil.
+- Eklentiyle oyun arasındaki köprü `scripts/admob_backend.gd`. Açılış sırası Google'ın kurallarına göre: önce onay (UMP; GDPR mesajı gereken ülkelerde form çıkar), sonra SDK, sonra reklamlar yüklenir. Geçiş ve ödüllü reklamlar önceden yüklenir ve her gösterimden sonra yenisi yüklenir.
+- Android uygulama ID'si `project.godot` içinde (`admob/general/android/app_id`); build sırasında manifest'e yazılır.
+- Android reklam birimi ID'lerimiz `Ads.LIVE_IDS` içinde. Bunları **sadece release build'ler** kullanır.
+- Debug build'ler (telefonda test ettiğiniz APK dahil) her zaman Google'ın herkese açık **test** ID'lerini (`Ads.TEST_IDS`) kullanır. Telefonda "Test Ad" yazan gerçek Google test reklamları görürsünüz; kendi canlı reklamınız test sırasında hiç görünmez.
+- Masaüstünde (eklenti yokken) debug çalıştırmalarda "TEST AD" yazan yer tutucular görünür; düzeni ve akışları denemek için.
+- Banner yüksekliği AdMob'un bildirdiği gerçek adaptive yükseklikten alınır; oyun banner'ların arasına sığacak şekilde yeniden yerleşir.
+- Eklentinin MIT lisans bildirimi "?" → HAKKINDA ekranındaki lisanslarda.
+- iOS uygulaması AdMob'a eklenince iOS ID'leri `Ads.LIVE_IDS` ve `project.godot` (`admob/general/ios/app_id`) içine girilecek.
 
 ## Yerleşim ve kurallar (koda işlendi)
 
@@ -24,18 +27,11 @@ Oyundaki bütün reklamlar `scripts/ads.gd` içindeki `Ads` katmanından geçer.
 | Reklam sırasında oyun sesi | Tam ekran reklam boyunca oyun sesi kısılıyor |
 | Onay (GDPR/UMP) değiştirilebilmeli | "?" ekranında **PRIVACY** butonu (SDK gerekli dediğinde görünür) |
 
-## Eklentiyi bağlamak
+## Eklentiyi güncellemek
 
-1. Bir AdMob hesabı açın. Android ve iOS için iki ayrı uygulama ekleyin. Her biri için **anchored adaptive banner**, **interstitial** ve **rewarded** reklam birimleri oluşturun.
-2. Godot 4 için bir AdMob eklentisi kurun. Örneğin Asset Library'de "AdMob" diye arayın; yaygın olanı poing-studios'un eklentisidir. Eklentinin Godot 4.7 sürümünü desteklediğinden emin olun ve kendi kurulum adımlarını izleyin. Android'de Gradle build zaten açık.
-3. `scripts/admob_backend.gd` dosyasını oluşturun. Bu dosya, `ads.gd` içindeki `_find_backend()` yorumunda listelenen fonksiyonları eklentinin API'sine bağlar:
-   - `initialize(ids)`: Önce UMP onay formunu, iOS'ta da ATT izin penceresini gösterir, sonra SDK'yı başlatır ve reklamları önceden yükler.
-   - `show_banners(top, bottom)`
-   - `show_interstitial()` ve `show_rewarded() -> bool`: Reklam kapanınca dönen coroutine'ler. `show_rewarded` ödül kazanıldıysa `true` döner.
-   - `rewarded_ready() -> bool`, `privacy_options_required() -> bool`, `show_privacy_options()`
-4. `_find_backend()` fonksiyonunda eklentinin singleton'ı varsa bu nesneyi döndürün.
-5. `Ads.IDS` içindeki test ID'lerini kendi ID'lerinizle değiştirin. iOS uygulama ID'sini `export_presets.cfg` dosyasındaki `GADApplicationIdentifier` alanına yazın. Android uygulama ID'si eklentinin ayarlarına girer.
-6. Test ederken kendi telefonunuzu AdMob'da **test cihazı** olarak ekleyin. Kendi canlı reklamlarınıza asla tıklamayın; hesabınız kapatılabilir.
+1. https://github.com/poingstudios/godot-admob-plugin/releases adresinden Godot sürümünüze uyan `poing-godot-admob-vX.zip`, `android-template-v<godot>.zip` ve `ios-template-v<godot>.zip` dosyalarını indirin.
+2. `addons/admob` klasörünü yenisiyle değiştirin (`csharp` ve `skills` klasörleri gerekmez). Şablonların içindeki `package.gd` ve `ads` klasörünü `addons/admob/android/bin` ve `addons/admob/ios/bin` içine koyun.
+3. Testleri çalıştırıp yeni bir APK alın ve telefonda reklamları deneyin.
 
 ## Mağaza tarafında yapılacaklar
 

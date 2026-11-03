@@ -303,6 +303,7 @@ func _run() -> void:
 	main._tutorial._show_credits()
 	var license: String = Tutorial._license_text()
 	_check(main._tutorial.credits_open() and "Godot" in license and "MIT" in license and license.length() > 2000, "credits show Godot license (%d chars)" % license.length())
+	_check("Poing Studios" in license, "credits include the AdMob plugin's MIT notice")
 
 	# Android back button closes the topmost layer
 	main._on_back()

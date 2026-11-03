@@ -94,13 +94,13 @@ _Son güncelleme: 29 Ekim 2026_
 
 ## 4. AdMob eklentisini oyuna bağlamak _(Claude yapabilir; sizin onayınız gerekir)_
 
-- [ ] Godot 4.7 uyumlu bir AdMob eklentisi kurun (ayrıntılar `ADS.md` içinde).
-- [ ] `scripts/admob_backend.gd` dosyasını yazıp `ads.gd` içindeki `_find_backend()` fonksiyonuna bağlayın.
+- [x] Godot 4.7 uyumlu bir AdMob eklentisi kurun: Poing Studios v5.1.0 (ayrıntılar `ADS.md` içinde).
+- [x] `scripts/admob_backend.gd` dosyasını yazıp `ads.gd` içindeki `_find_backend()` fonksiyonuna bağlayın.
 - [ ] Test ID'lerini kendi ID'lerinizle değiştirin:
   - [x] Android: `Ads.LIVE_IDS` (sadece release build kullanır; debug build hep test reklamı gösterir)
   - [ ] iOS: `Ads.LIVE_IDS` içine iOS ID'leri
   - iOS için `export_presets.cfg` içindeki `GADApplicationIdentifier`
-  - Android uygulama ID'si (eklenti ayarlarında)
+  - [x] Android uygulama ID'si (`project.godot`, `admob/general/android/app_id`)
 - [ ] iOS için Google'ın güncel SKAdNetwork listesini `export_presets.cfg` dosyasına ekleyin.
 - [ ] Telefonda test edin: banner'lar, interstitial, ödüllü reklamlar ve onay formu.
 

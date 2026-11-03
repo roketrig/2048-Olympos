@@ -1,10 +1,10 @@
 class_name Ads
 extends CanvasLayer
 
-# Every ad goes through here. With the AdMob plugin installed, `_find_backend`
-# returns the bridge to it (see ADS.md). Debug builds without the plugin show
-# clearly marked test placeholders, so the layout and flows can be tried on
-# desktop. Release builds without the plugin show no ads at all.
+# Every ad goes through here. On Android builds the AdMob plugin is present and
+# `_find_backend` returns the bridge to it (AdMobBackend, see ADS.md). Desktop
+# debug runs show clearly marked test placeholders, so the layout and flows can
+# be tried there. Anywhere else without the plugin there are no ads at all.
 
 signal layout_changed
 
@@ -36,7 +36,7 @@ const TEST_IDS := {
 	},
 }
 
-const BANNER_DP := 60.0 # space kept per banner; anchored adaptive banners are ~50-60dp on phones
+const BANNER_DP := 60.0 # space kept per banner until AdMob reports the real adaptive height
 const AD_GAP := 6.0 # game pixels between a banner and anything tappable
 const INTERSTITIAL_EVERY := 2 # at most every 2nd game over...
 const INTERSTITIAL_MIN_SECONDS := 120.0 # ...at most once every 2 minutes...
@@ -70,18 +70,21 @@ func _ready() -> void:
 	add_child(_mock_banners)
 
 	if _backend != null:
+		_backend.banner_size_changed.connect(func() -> void:
+			_sync_banners()
+			layout_changed.emit())
 		_backend.initialize(ids())
 	get_viewport().size_changed.connect(_sync_banners)
 	_sync_banners()
 
 
-# Bridge to the AdMob plugin. Return an object with: initialize(ids: Dictionary)
-# (runs the UMP consent form / iOS tracking prompt, then loads ads),
-# show_banners(top: bool, bottom: bool), show_interstitial() and
+# Bridge to the AdMob plugin: initialize(ids) (consent form, then the SDK),
+# show_banners(top, bottom), banner_dp(), show_interstitial() and
 # show_rewarded() -> bool (coroutines that return when the ad closes),
-# rewarded_ready() -> bool, privacy_options_required() -> bool and
-# show_privacy_options(). See ADS.md.
+# rewarded_ready(), privacy_options_required() and show_privacy_options().
 func _find_backend() -> Object:
+	if AdMobBackend.available():
+		return AdMobBackend.new(self)
 	return null
 
 
@@ -118,7 +121,10 @@ func banner_height() -> float:
 		px_per_dp = DisplayServer.screen_get_scale() if OS.get_name() == "iOS" else DisplayServer.screen_get_dpi() / 160.0
 	else:
 		px_per_dp = DisplayServer.window_get_size().y / 640.0 # desktop preview: pretend a 640dp phone
-	return ceilf(BANNER_DP * px_per_dp * _to_game())
+	var dp := BANNER_DP
+	if _backend != null and _backend.banner_dp() > 0.0:
+		dp = _backend.banner_dp()
+	return ceilf(dp * px_per_dp * _to_game())
 
 
 # Notch / home indicator free area, in game coordinates.
